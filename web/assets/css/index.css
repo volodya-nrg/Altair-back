@@ -1,0 +1,181 @@
+.columns {
+    display: flex;
+}
+
+.column {
+    flex: 0 1 100%;
+    padding: 10px;
+    background-color: whitesmoke;
+}
+
+.column:nth-child(1) {
+    flex: 0 0 565px;
+}
+
+.column:not(:first-child) {
+    margin: 0 0 0 10px;
+}
+
+.form {
+    display: block;
+}
+
+.form + .form {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: lightgray solid 1px;
+}
+
+.form fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.form__row:not(:first-child) {
+    margin-top: 10px;
+}
+
+.form__title {
+    color: gray;
+    font-size: 12px;
+}
+
+.form__files {
+    display: table;
+    width: 100%;
+    background-color: whitesmoke;
+    margin-top: 10px;
+}
+
+input[type="text"], input[type="email"], input[type="file"], input[type="number"], input[type="password"], textarea, select {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+input[disabled="disabled"], textarea, select {
+    background-color: whitesmoke;
+    opacity: 0.7;
+    cursor: default;
+}
+
+.json-result {
+    width: 700px;
+    white-space: pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    word-wrap: break-word;
+}
+
+.hidden {
+    display: none;
+}
+
+.flexbox {
+    display: flex;
+}
+
+.flexbox__cell {
+    flex: 0 1 100%;
+}
+
+.flexbox__cell + .flexbox__cell {
+    margin-left: 20px;
+}
+
+.ui-accordion .ui-accordion-content {
+    padding: 10px;
+}
+
+label + label {
+    margin-left: 10px;
+}
+
+.icon {
+    display: inline-flex;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    color: white;
+    background-color: gray;
+    cursor: pointer;
+}
+
+.wrapper_for_photo {
+    position: relative;
+    float: left;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    text-align: center;
+    background-color: lightgray;
+    margin: 5px;
+}
+
+.wrapper_for_photo .icon {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+/* ------------------dynamic------------------- */
+.dynamic {
+    position: relative;
+}
+
+.dynamic__controls {
+    display: flex;
+}
+
+.dynamic__controls > * {
+    flex-basis: 100%;
+    margin-left: 10px;
+    background-color: whitesmoke;
+}
+
+.dynamic__controls > *:first-child {
+    margin-left: 0;
+}
+
+.dynamic__controls > *:last-child {
+    flex-basis: 20px;
+}
+
+.dynamic__item {
+    margin-top: 5px;
+}
+
+.dynamic__inputs {
+    display: flex;
+    align-items: center;
+}
+
+.dynamic__inputs > * {
+    flex-basis: 100%;
+    margin-left: 10px;
+}
+
+.dynamic__inputs > *:first-child {
+    margin-left: 0;
+}
+
+.dynamic__inputs > *:last-child {
+    flex-basis: 20px;
+}
+
+.dynamic__input_short {
+    flex: 0 0 20px;
+}
+
+.dynamic__input_mid {
+    flex: 0 0 50px;
+}
+
+.dynamic__input_lg {
+    flex: 0 0 100px;
+}
+
+/* ------------------\dynamic------------------- */

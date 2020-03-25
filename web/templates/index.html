@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>index</title>
+    <link rel="stylesheet" href="/assets/vendor/jquery-ui-1.12.1.custom/jquery-ui.min.css"/>
+    <link rel="stylesheet" href="/assets/vendor/jquery-ui-1.12.1.custom/jquery-ui.theme.min.css"/>
+    <link rel="stylesheet" href="/assets/css/index.css">
+
+    <script src="/assets/vendor/jquery/jquery-3.4.1.min.js"></script>
+    <script src="/assets/vendor/jquery-ui-1.12.1.custom/jquery-ui.min.js"></script>
+    <script>
+        var ALTAIR = {};
+        ALTAIR.catsTree = {{.catsTree}};
+        ALTAIR.kindProperties = {{.kindProperties}};
+        ALTAIR.properties = {{.properties}};
+    </script>
+    <script src="/assets/js/index.js"></script>
+</head>
+<body>
+<div class="columns">
+    <div class="column">
+        <div class="accordion">
+            <h3>категории</h3>
+            <div>
+                <div class="accordion">
+                    <h3>GET: /api/v1/cats</h3>
+                    <div>
+                        <form class="form" action="/api/v1/cats" method="get">
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="asTree" value="true"/> как дерево
+                                </label>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="isFillPropertiesFull" value="true"/> присоединить св-ва(полное)
+                                </label>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>GET: /api/v1/cats/:catId</h3>
+                    <div>
+                        <form class="form" action="/api/v1/cats/:catId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">catId</div>
+                                <div class="target_for_cats_tree" data-name="catId" data-is_require="1"></div>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>POST: /api/v1/cats</h3>
+                    <div>
+                        <form class="form" action="/api/v1/cats" method="post">
+                            <div class="form__row">
+                                <div class="form__title">название</div>
+                                <input type="text" name="name" required="required"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">parentId</div>
+                                <div class="target_for_cats_tree" data-name="parentId"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">позиция</div>
+                                <input type="number" name="pos"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">назначенные свойства</div>
+                                <div class="target_for_properties"></div>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>PUT: /api/v1/cats/:catId</h3>
+                    <div>
+                        <form class="form form-put-get-cats" action="/api/v1/cats/:catId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">id категории</div>
+                                <div class="target_for_cats_tree" data-name="catId" data-is_require="1"></div>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                        <form class="form form-put-put-cats hidden" action="/api/v1/cats/:catId" method="put">
+                            <input type="hidden" name="catId"/>
+                            <div class="form__row">
+                                <div class="form__title">название</div>
+                                <input type="text" name="name" required="required"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">slug</div>
+                                <input type="text" name="slug" disabled="disabled"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">id родителя</div>
+                                <div class="target_for_cats_tree" data-name="parentId" data-is_require="1"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">позиция</div>
+                                <input type="number" name="pos"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">назначенные свойства</div>
+                                <div class="target_for_properties"></div>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="isDisabled" value="true"/> is_disabled
+                                </label>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>DELETE: /api/v1/cats/:catId</h3>
+                    <div>
+                        <form class="form" action="/api/v1/cats/:catId" method="delete">
+                            <div class="form__row">
+                                <div class="form__title">catId</div>
+                                <div class="target_for_cats_tree" data-name="catId" data-is_require="1"></div>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <h3>пользователи</h3>
+            <div>
+                <div class="accordion">
+                    <h3>GET: /api/v1/users</h3>
+                    <div>
+                        <form class="form" action="/api/v1/users" method="get">
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>GET: /api/v1/users/:userId</h3>
+                    <div>
+                        <form class="form" action="/api/v1/users/:userId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">userId</div>
+                                <input type="number" name="userId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>POST: /api/v1/users</h3>
+                    <div>
+                        <form class="form" action="/api/v1/users" method="post">
+                            <div class="form__row">
+                                <div class="form__title">email</div>
+                                <input type="email" name="email"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">password</div>
+                                <input type="text" name="password"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">password_c</div>
+                                <input type="text" name="passwordConfirm"/>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="agreeOffer" value="true"/> agreeOffer
+                                </label>
+                                <label>
+                                    <input type="checkbox" name="agreePolicy" value="true"/> agreePolicy
+                                </label>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>PUT: /api/v1/users</h3>
+                    <div>
+                        <form class="form form-put-get-users" action="/api/v1/users/:userId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">userId</div>
+                                <input type="number" name="userId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                        <form class="form form-put-put-users hidden"
+                              action="/api/v1/users/:userId"
+                              method="put"
+                              enctype="multipart/form-data">
+                            <input type="hidden" name="userId"/>
+
+                            <div class="form__row">
+                                <div class="form__title">avatar</div>
+                                <input type="file" name="file"/>
+                                <div class="form__files"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">name</div>
+                                <input type="text" name="name"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">email</div>
+                                <input type="email" name="email" readonly="readonly"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">password_old</div>
+                                <input type="text" name="passwordOld"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">password</div>
+                                <input type="text" name="password"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">password_c</div>
+                                <input type="text" name="passwordConfirm"/>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="emailIsConfirmed" value="true"/> email_is_confirmed
+                                </label>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <h3>объявления</h3>
+            <div>
+                <div class="accordion">
+                    <h3>GET: /api/v1/ads</h3>
+                    <div>
+                        <form class="form" action="/api/v1/ads" method="get">
+                            <div class="form__row">
+                                <div class="form__title">id категории</div>
+                                <div class="target_for_cats_tree" data-name="catId"></div>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>GET: /api/v1/ads/:adId</h3>
+                    <div>
+                        <form class="form" action="/api/v1/ads/:adId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">id объявления *</div>
+                                <input type="number" name="adId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>POST: /api/v1/ads</h3>
+                    <div>
+                        <form class="form" action="/api/v1/ads" method="post" enctype="multipart/form-data">
+                            <div class="form__row">
+                                <div class="form__title">файл(ы)</div>
+                                <input type="file" name="files" multiple="multiple" accept="image/jpeg,image/png"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">заголовок *</div>
+                                <input type="text" name="title"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">id категории *</div>
+                                <div class="target_for_cats_tree" data-name="catId" data-is_require="1"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">id пользователя</div>
+                                <input type="number" name="userId"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">текст</div>
+                                <textarea name="text"></textarea>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">цена</div>
+                                <input type="number" name="price"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>PUT: /api/v1/ads</h3>
+                    <div>
+                        <form class="form form-put-get-ads" action="/api/v1/ads/:adId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">id объявления</div>
+                                <input type="number" name="adId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                        <form class="form form-put-put-ads hidden" action="/api/v1/ads/:adId" method="put"
+                              enctype="multipart/form-data">
+                            <input type="hidden" name="adId"/>
+                            <div class="form__row">
+                                <div class="form__title">файл(ы)</div>
+                                <input type="file" name="files" multiple="multiple" accept="image/jpeg,image/png"/>
+                                <div class="form__files"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">заголовок</div>
+                                <input type="text" name="title" required="required"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">slug</div>
+                                <input type="text" name="slug" disabled="disabled"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">id категории</div>
+                                <div class="target_for_cats_tree" data-name="catId" data-is_require="1"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">id пользователя</div>
+                                <input type="number" name="userId"/>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="isDisabled" value="true"/> is_disabled
+                                </label>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">текст</div>
+                                <textarea name="text"></textarea>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">цена</div>
+                                <input type="number" name="price"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>DELETE: /api/v1/ads/:adId</h3>
+                    <div>
+                        <form class="form" action="/api/v1/ads/:adId" method="delete">
+                            <div class="form__row">
+                                <div class="form__title">id объявления</div>
+                                <input type="number" name="adId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <h3>свойства для категорий</h3>
+            <div>
+                <div class="accordion">
+                    <h3>GET: /api/v1/properties</h3>
+                    <div>
+                        <form class="form" action="/api/v1/properties" method="get">
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>GET: /api/v1/properties/:propertyId</h3>
+                    <div>
+                        <form class="form" action="/api/v1/properties/:propertyId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">id свойства</div>
+                                <input type="number" name="propertyId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>POST: /api/v1/properties</h3>
+                    <div>
+                        <form class="form sx-reload" action="/api/v1/properties" method="post">
+                            <div class="form__row">
+                                <div class="form__title">заголовок *</div>
+                                <input type="text" name="title"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">разновидность тега *</div>
+                                <div class="target_for_kind_properties" data-name="kindPropertyId"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">значения для св-ва</div>
+                                <div class="target_for_values_properties"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">[name=] *</div>
+                                <input type="text" name="name"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">макс. число</div>
+                                <input type="number" name="maxInt"/>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="isCanAsFilter" value="true"/> is_can_as_filter
+                                </label>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>PUT: /api/v1/properties/:propertyId</h3>
+                    <div>
+                        <form class="form form-put-get-properties" action="/api/v1/properties/:propertyId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">id свойства</div>
+                                <input type="number" name="propertyId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                        <form class="form form-put-put-properties sx-reload hidden"
+                              action="/api/v1/properties/:propertyId"
+                              method="put">
+                            <input type="hidden" name="propertyId"/>
+                            <div class="form__row">
+                                <div class="form__title">заголовок *</div>
+                                <input type="text" name="title"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">разновидность тега *</div>
+                                <div class="target_for_kind_properties" data-name="kindPropertyId"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">значения для св-ва</div>
+                                <div class="target_for_values_properties"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">[name=] *</div>
+                                <input type="text" name="name"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">макс. число</div>
+                                <input type="number" name="maxInt"/>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="isCanAsFilter" value="true"/> is_can_as_filter
+                                </label>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>DELETE: /api/v1/properties/:propertyId</h3>
+                    <div>
+                        <form class="form sx-reload" action="/api/v1/properties/:propertyId" method="delete">
+                            <div class="form__row">
+                                <div class="form__title">id свойства</div>
+                                <input type="number" name="propertyId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <h3>разновидности типов св-в для категорий</h3>
+            <div>
+                <div class="accordion">
+                    <h3>GET: /api/v1/kind_properties</h3>
+                    <div>
+                        <form class="form" action="/api/v1/kind_properties" method="get">
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>GET: /api/v1/kind_properties/:kindPropertyId</h3>
+                    <div>
+                        <form class="form" action="/api/v1/kind_properties/:kindPropertyId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">kindPropertyId</div>
+                                <input type="number" name="kindPropertyId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>POST: /api/v1/kind_properties</h3>
+                    <div>
+                        <form class="form sx-reload" action="/api/v1/kind_properties" method="post">
+                            <div class="form__row">
+                                <div class="form__title">название</div>
+                                <input type="text" name="name"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>PUT: /api/v1/kind_properties/:kindPropertyId</h3>
+                    <div>
+                        <form class="form form-put-get-kind_properties" action="/api/v1/kind_properties/:kindPropertyId"
+                              method="get">
+                            <div class="form__row">
+                                <div class="form__title">id</div>
+                                <input type="number" name="kindPropertyId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                        <form class="form form-put-put-kind_properties sx-reload hidden"
+                              action="/api/v1/kind_properties/:kindPropertyId" method="put">
+                            <input type="hidden" name="kindPropertyId"/>
+                            <div class="form__row">
+                                <div class="form__title">название *</div>
+                                <input type="text" name="name"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>DELETE: /api/v1/kind_properties/:kindPropertyId</h3>
+                    <div>
+                        <form class="form sx-reload" action="/api/v1/kind_properties/:kindPropertyId" method="delete">
+                            <div class="form__row">
+                                <div class="form__title">id</div>
+                                <input type="number" name="kindPropertyId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <h3>тест</h3>
+            <div>
+                <div class="accordion">
+                    <h3>GET: /api/v1/test</h3>
+                    <div>
+                        <form class="form" action="/api/v1/test" method="get">
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <pre class="column json-result"></pre>
+</div>
+</body>
+</html>
