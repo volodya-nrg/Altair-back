@@ -5,14 +5,9 @@ import (
 	"altair/pkg/helpers"
 	"altair/server"
 	"altair/storage"
-	"errors"
+	"reflect"
 	"strconv"
 	"sync"
-)
-
-var (
-	errNotCreateNewCat         = errors.New("not create new cat")
-	errNotCreateNewCatProperty = errors.New("not create new cat property")
 )
 
 func NewCatService() *CatService {
@@ -23,63 +18,88 @@ type CatService struct{}
 
 func (cs CatService) GetCats() ([]*storage.Cat, error) {
 	cats := make([]*storage.Cat, 0)
-	err := server.Db.Debug().Order("cat_id", false).Find(cats).Error
+	err := server.Db.Debug().Order("cat_id", false).Find(&cats).Error
 
 	return cats, err
 }
 func (cs CatService) GetCatsFull() ([]*response.СatFull, error) {
-	//catsFull := make([]*response.СatFull, 0)
-	//linkPropertiesWithCatsProperties := make([]*storage.LinkPropertiesWithCatsProperties, 0)
-	//query := `
-	//	SELECT P.*, CP.cat_id, CP.pos, CP.is_require
-	//		FROM properties P
-	//		LEFT JOIN cats_properties CP ON CP.property_id = P.property_id
-	//		ORDER BY P.property_id ASC`
-	//
-	//if err := server.Db.Debug().Order("cat_id", false).Find(&catsFull).Error; err != nil {
-	//	return catsFull, err
-	//}
-	//if err := server.Db.Debug().Raw(query).Scan(&linkPropertiesWithCatsProperties).Error; err != nil {
-	//	return catsFull, err
-	//}
-	//
-	//for _, cat := range catsFull {
-	//	for _, link := range linkPropertiesWithCatsProperties {
-	//		if cat.CatId == link.CatId {
-	//			cat.PropertiesFull = append(cat.PropertiesFull, &link.PropertyFull)
-	//		}
-	//	}
-	//}
+	serviceProperties := NewPropertyService()
+	catsFull := make([]*response.СatFull, 0)
+	linkCatsProperties := make([]*storage.CatProperty, 0)
+	catIds := make([]uint64, 0)
 
-	//logger.Info.Println(linkPropertiesWithCatsProperties)
-
-	// заполняем св-вами, а так же их значениями
-	// 1. берем список всего каталога + связи со св-вами
-	// 2. берем список всех св-в + связи со значениями
-	// 3. берем все значения
-	// 4. все это дело соединить
-	////////////////////////////////////////
-
-	return []*response.СatFull{}, nil
-}
-func (cs CatService) GetCatsAsTree() (*response.CatTree, error) {
-	cats := make([]*response.CatTree, 0)
-	tree := new(response.CatTree)
-
-	if err := server.Db.Debug().Table("cats").Order("parent_id, pos", false).Find(cats).Error; err != nil {
-		return tree, err
+	cats, err := cs.GetCats()
+	if err != nil {
+		return catsFull, err
 	}
 
 	for _, cat := range cats {
-		if cat.ParentId == 0 {
-			tree.Childes = append(tree.Childes, cat)
+		catFull := new(response.СatFull)
+		catFull.Cat = cat
+		catsFull = append(catsFull, catFull)
+		catIds = append(catIds, cat.CatId)
+	}
 
-		} else if cat.ParentId > 0 {
-			createTreeWalk(tree, *cat)
+	propertiesFull, err := serviceProperties.GetPropertiesFullByCatIds(catIds)
+	if err != nil {
+		return catsFull, err
+	}
+
+	// надо подхватитть связи каталога со св-вами
+	if err := server.Db.Debug().Table("cats_properties").Find(&linkCatsProperties).Error; err != nil {
+		return catsFull, err
+	}
+
+	// имеем пулные каталоги, полные св-ва со значениями и их связи
+	for _, catFull := range catsFull {
+		for _, link := range linkCatsProperties {
+			for _, prop := range propertiesFull {
+				if link.CatId == catFull.CatId && link.PropertyId == prop.PropertyId {
+					catFull.PropertiesFull = append(catFull.PropertiesFull, prop)
+				}
+			}
 		}
 	}
 
-	return tree, nil
+	return catsFull, nil
+}
+func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.CatFullTree {
+	treeFull := new(response.CatFullTree)
+
+	for _, catFull := range catsFull {
+		tmp := new(response.CatFullTree)
+		tmp.СatFull = catFull
+
+		if catFull.CatId > 0 {
+			if catFull.ParentId == 0 {
+				treeFull.Childes = append(treeFull.Childes, tmp)
+
+			} else if catFull.ParentId > 0 {
+				cs.createTreeFullWalk(treeFull, *tmp)
+			}
+		}
+	}
+
+	return treeFull
+}
+func (cs CatService) GetCatsAsTree(cats []*storage.Cat) *response.CatTree {
+	tree := new(response.CatTree)
+
+	for _, cat := range cats {
+		if cat.CatId > 0 {
+			tmp := new(response.CatTree)
+			tmp.Cat = cat
+
+			if cat.ParentId == 0 {
+				tree.Childes = append(tree.Childes, tmp)
+
+			} else if cat.ParentId > 0 {
+				cs.createTreeWalk(tree, *tmp)
+			}
+		}
+	}
+
+	return tree
 }
 func (cs CatService) GetCatByID(catId uint64) (*storage.Cat, error) {
 	pCat := new(storage.Cat)
@@ -128,18 +148,17 @@ func (cs CatService) Delete(catId uint64) error {
 	if err := server.Db.Debug().Delete(&cat).Error; err != nil {
 		return err
 	}
-	if err := deleteFromCatsPropertiesByCatId(catId); err != nil {
+	if err := cs.deleteFromCatsPropertiesByCatId(catId); err != nil {
 		return err
 	}
 
 	return nil
 }
-
 func (cs CatService) ReWriteCatsProperties(catId uint64, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string) ([]*storage.CatProperty, error) {
 	list := make([]*storage.CatProperty, 0)
 	tbl := server.Db.Debug().Table("cats_properties")
 
-	if err := deleteFromCatsPropertiesByCatId(catId); err != nil {
+	if err := cs.deleteFromCatsPropertiesByCatId(catId); err != nil {
 		return list, err
 	}
 
@@ -178,9 +197,8 @@ func (cs CatService) ReWriteCatsProperties(catId uint64, mPropertyId map[string]
 
 	return list, nil
 }
-
 func (cs CatService) GetAncestorsNastedLoop(cats []storage.Cat, findCatId uint64) []storage.Cat {
-	a := ancestorsNastedLoopWalk(cats, findCatId, nil)
+	a := cs.ancestorsNastedLoopWalk(cats, findCatId, nil)
 
 	// Reverse examples:
 
@@ -197,25 +215,31 @@ func (cs CatService) GetAncestorsNastedLoop(cats []storage.Cat, findCatId uint64
 
 	return a
 }
-func (cs CatService) GetDescendantsNastedLoop(catsTree response.CatTree, findCatId uint64) response.CatTree {
-	result := response.CatTree{}
+func (cs CatService) GetDescendantsNastedLoop(catsTree *response.CatTree, findCatId uint64) *response.CatTree {
+	result := new(response.CatTree)
+
+	if findCatId == 0 {
+		return catsTree
+	}
+
+	if !reflect.ValueOf(catsTree.Cat).IsNil() && catsTree.Cat.CatId == findCatId {
+		return catsTree
+	}
 
 	for _, branch := range catsTree.Childes {
-		if branch.CatId == findCatId {
-			result = *branch
-			break
+		if branch.Cat.CatId == findCatId {
+			return branch
 
 		} else if len(branch.Childes) > 0 {
-			if res := cs.GetDescendantsNastedLoop(*branch, findCatId); res.CatId > 0 {
-				result = res
-				break
+			if res := cs.GetDescendantsNastedLoop(branch, findCatId); !reflect.ValueOf(res.Cat).IsNil() && res.Cat.CatId > 0 {
+				return res
 			}
 		}
 	}
 
 	return result
 }
-func (cs CatService) GetDescendantsGoRutines(catsTree response.CatTree, findCatId uint64) response.CatTree {
+func (cs CatService) GetDescendantsGoRutines(catsTree *response.CatTree, findCatId uint64) response.CatTree {
 	var wg sync.WaitGroup
 	out := response.CatTree{}
 
@@ -223,7 +247,7 @@ func (cs CatService) GetDescendantsGoRutines(catsTree response.CatTree, findCatI
 		wg.Add(1)
 		go func(tmpTree response.CatTree) {
 			defer wg.Done()
-			out = descendantsGoRutinesWalk(tmpTree, findCatId)
+			out = cs.descendantsGoRutinesWalk(tmpTree, findCatId)
 		}(*tree)
 	}
 
@@ -233,20 +257,39 @@ func (cs CatService) GetDescendantsGoRutines(catsTree response.CatTree, findCatI
 }
 func (cs CatService) GetIdsFromCatsTree(catsTree *response.CatTree) []uint64 {
 	result := make([]uint64, 0)
+	uniq := make([]uint64, 0)
+
+	if !reflect.ValueOf(catsTree.Cat).IsNil() {
+		result = append(result, catsTree.CatId)
+	}
 
 	for _, v := range catsTree.Childes {
-		result = append(result, v.CatId)
-
+		if v.CatId > 0 {
+			result = append(result, v.CatId)
+		}
 		if len(v.Childes) > 0 {
 			result = append(result, cs.GetIdsFromCatsTree(v)...)
 		}
 	}
 
-	return result
+	// возьмем только уникальные значения
+	for _, v1 := range result {
+		has := false
+		for _, v2 := range uniq {
+			if v2 == v1 {
+				has = true
+			}
+		}
+		if !has {
+			uniq = append(uniq, v1)
+		}
+	}
+
+	return uniq
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func ancestorsNastedLoopWalk(cats []storage.Cat, findCatId uint64, receiver []storage.Cat) []storage.Cat {
+func (cs CatService) ancestorsNastedLoopWalk(cats []storage.Cat, findCatId uint64, receiver []storage.Cat) []storage.Cat {
 	if receiver == nil {
 		receiver = make([]storage.Cat, 0)
 	}
@@ -263,9 +306,9 @@ func ancestorsNastedLoopWalk(cats []storage.Cat, findCatId uint64, receiver []st
 		return receiver
 	}
 
-	return ancestorsNastedLoopWalk(cats, findCatId, receiver)
+	return cs.ancestorsNastedLoopWalk(cats, findCatId, receiver)
 }
-func descendantsGoRutinesWalk(catTree response.CatTree, findCatId uint64) response.CatTree {
+func (cs CatService) descendantsGoRutinesWalk(catTree response.CatTree, findCatId uint64) response.CatTree {
 	result := response.CatTree{}
 
 	if catTree.CatId == findCatId {
@@ -278,23 +321,33 @@ func descendantsGoRutinesWalk(catTree response.CatTree, findCatId uint64) respon
 		}
 
 		if len(tree.Childes) > 0 {
-			return descendantsGoRutinesWalk(*tree, findCatId)
+			return cs.descendantsGoRutinesWalk(*tree, findCatId)
 		}
 	}
 
 	return result
 }
-func createTreeWalk(branches *response.CatTree, inputCat response.CatTree) {
+func (cs CatService) createTreeWalk(branches *response.CatTree, inputCat response.CatTree) {
 	for _, branch := range branches.Childes {
 		if branch.CatId == inputCat.ParentId {
 			branch.Childes = append(branch.Childes, &inputCat)
 
 		} else if len(branch.Childes) > 0 {
-			createTreeWalk(branch, inputCat)
+			cs.createTreeWalk(branch, inputCat)
 		}
 	}
 }
-func deleteFromCatsPropertiesByCatId(catId uint64) error {
+func (cs CatService) createTreeFullWalk(branches *response.CatFullTree, inputCat response.CatFullTree) {
+	for _, branch := range branches.Childes {
+		if branch.CatId == inputCat.ParentId {
+			branch.Childes = append(branch.Childes, &inputCat)
+
+		} else if len(branch.Childes) > 0 {
+			cs.createTreeFullWalk(branch, inputCat)
+		}
+	}
+}
+func (cs CatService) deleteFromCatsPropertiesByCatId(catId uint64) error {
 	err := server.Db.Debug().
 		Table("cats_properties").
 		Where("cat_id = ?", catId).

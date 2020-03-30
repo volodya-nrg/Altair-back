@@ -4,15 +4,7 @@ import (
 	"altair/pkg/helpers"
 	"altair/server"
 	"altair/storage"
-	"errors"
 	"unicode/utf8"
-)
-
-var (
-	errNotCorrectEmail  = errors.New("not correct email")
-	errPasswordIsShort  = errors.New("password is short")
-	errNotCreateNewUser = errors.New("not create new user")
-	minLenPassword      = 6
 )
 
 func NewUserService() *UserService {
@@ -26,11 +18,13 @@ func (userService UserService) Get() bool {
 }
 func (userService UserService) GetUsers() ([]*storage.User, error) {
 	users := make([]*storage.User, 0)
-	return users, server.Db.Debug().Order("user_id", true).Find(users).Error
+	err := server.Db.Debug().Order("user_id", true).Find(&users).Error
+	return users, err
 }
 func (userService UserService) GetUserByID(userId uint64) (*storage.User, error) {
 	user := new(storage.User)
-	return user, server.Db.Debug().First(user, userId).Error // проверяется в контроллере
+	err := server.Db.Debug().First(user, userId).Error // проверяется в контроллере
+	return user, err
 }
 func (userService UserService) Create(user *storage.User) error {
 	if err := validate(user); err != nil {
@@ -41,15 +35,17 @@ func (userService UserService) Create(user *storage.User) error {
 	}
 
 	user.Password = helpers.HashAndSalt(user.Password)
+	err := server.Db.Debug().Create(user).Error
 
-	return server.Db.Debug().Create(user).Error
+	return err
 }
 func (userService UserService) Update(user *storage.User) error {
 	if err := validate(user); err != nil {
 		return err
 	}
 
-	return server.Db.Debug().Save(user).Error
+	err := server.Db.Debug().Save(user).Error
+	return err
 }
 
 // private -------------------------------------------------------------------------------------------------------------

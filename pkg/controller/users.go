@@ -162,7 +162,7 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 		return pResult
 	}
 
-	user, err := serviceUsers.GetUserByID(userId)
+	pUser, err := serviceUsers.GetUserByID(userId)
 	if gorm.IsRecordNotFoundError(err) {
 		pResult.Status = 404
 		pResult.Err = err
@@ -178,10 +178,10 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 	password := strings.TrimSpace(pPutRequest.Password)
 	passwordConfirm := strings.TrimSpace(pPutRequest.PasswordConfirm)
 
-	user.Name = strings.TrimSpace(pPutRequest.Name)
+	pUser.Name = strings.TrimSpace(pPutRequest.Name)
 
-	if user.EmailIsConfirmed != pPutRequest.EmailIsConfirmed {
-		user.EmailIsConfirmed = !user.EmailIsConfirmed
+	if pUser.EmailIsConfirmed != pPutRequest.EmailIsConfirmed {
+		pUser.EmailIsConfirmed = !pUser.EmailIsConfirmed
 	}
 
 	if utf8.RuneCountInString(passwordOld) > 0 && utf8.RuneCountInString(password) > 0 && utf8.RuneCountInString(passwordConfirm) > 0 {
@@ -190,12 +190,12 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 			pResult.Err = errPasswordsAreNotEqual
 			return pResult
 		}
-		if !helpers.ComparePasswords(user.Password, passwordOld) {
+		if !helpers.ComparePasswords(pUser.Password, passwordOld) {
 			pResult.Status = 400
 			pResult.Err = errPasswordsAreNotEqualCurrentAndOld
 			return pResult
 		}
-		user.Password = helpers.HashAndSalt(password)
+		pUser.Password = helpers.HashAndSalt(password)
 	}
 
 	var filePath string
@@ -208,9 +208,9 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 	}
 
 	// отправили файл или у Юзера есть аватар и пришедший аватар пустой (удалим)
-	if filePath != "" || (user.Avatar != "" && pPutRequest.Avatar == "") {
-		if user.Avatar != "" {
-			tmp := "./web/images/" + user.Avatar
+	if filePath != "" || (pUser.Avatar != "" && pPutRequest.Avatar == "") {
+		if pUser.Avatar != "" {
+			tmp := "./web/images/" + pUser.Avatar
 
 			if helpers.FileExists(tmp) {
 				if err := os.Remove(tmp); err != nil {
@@ -218,14 +218,14 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 				}
 			}
 
-			user.Avatar = ""
+			pUser.Avatar = ""
 		}
 		if filePath != "" {
-			user.Avatar = filePath
+			pUser.Avatar = filePath
 		}
 	}
 
-	if err = serviceUsers.Update(&user); err != nil {
+	if err = serviceUsers.Update(pUser); err != nil {
 		pResult.Status = 500
 		pResult.Err = err
 		return pResult
@@ -233,6 +233,6 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 
 	pResult.Status = 200
 	pResult.Err = nil
-	pResult.Data = user
+	pResult.Data = pUser
 	return pResult
 }

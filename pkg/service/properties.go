@@ -4,53 +4,37 @@ import (
 	"altair/api/response"
 	"altair/server"
 	"altair/storage"
-	"errors"
 	"github.com/jinzhu/gorm"
 	"strconv"
 	"strings"
 )
 
-var (
-	errOnNewRecordNewProperty = errors.New("err on NewRecord new property")
-)
-
 func NewPropertyService() *PropertyService {
-	return new(PropertyService)
+	prop := new(PropertyService)
+	prop.tblFields = "P.property_id, P.title, P.kind_property_id, P.name, P.is_can_as_filter, P.max_int"
+
+	return prop
 }
 
-type PropertyService struct{}
+type PropertyService struct {
+	tblFields string
+}
 
 func (ps PropertyService) GetProperties(isOrderDesc bool) ([]*storage.Property, error) {
 	list := make([]*storage.Property, 0)
-	err := server.Db.Debug().Order("property_id", isOrderDesc).Find(list).Error
-
-	return list, err
-}
-func (ps PropertyService) GetPropertiesByCatIds(catIds []uint64) ([]*response.LinkPropertiesWithCatsProperties, error) {
-	list := make([]*response.LinkPropertiesWithCatsProperties, 0)
-
-	if len(catIds) < 1 {
-		return list, nil
-	}
-
-	query := `
-		SELECT P.*, CP.cat_id, CP.property_id, CP.pos, CP.is_require 
-			FROM properties P
-				LEFT JOIN cats_properties CP ON CP.cat_id = P.cat_id
-			WHERE P.cat_id IN (?)`
-	err := server.Db.Debug().Raw(query, catIds).Find(list).Error
+	err := server.Db.Debug().Order("property_id", isOrderDesc).Find(&list).Error
 
 	return list, err
 }
 func (ps PropertyService) GetPropertiesFull() ([]*response.PropertyFull, error) {
+	// тут в запросе спец-но не полные данные, т.к. категории нет. Только добавляем kindPropertyName
 	list := make([]*response.PropertyFull, 0)
 	query := `
-		SELECT *, 
-				KP.name AS kind_property_name 
+		SELECT ` + ps.tblFields + `, KP.name AS kind_property_name
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 			ORDER BY P.property_id ASC`
-	err := server.Db.Debug().Raw(query).Scan(list).Error
+	err := server.Db.Debug().Raw(query).Scan(&list).Error
 
 	return list, err
 }
@@ -58,7 +42,7 @@ func (ps PropertyService) GetPropertiesFullByCatId(catId uint64) ([]*response.Pr
 	valuesPropertyService := NewValuesPropertyService()
 	list := make([]*response.PropertyFull, 0)
 	query := `
-		SELECT  *, 
+		SELECT  ` + ps.tblFields + `, 
 				KP.name AS kind_property_name, 
 				CP.pos AS property_pos,
 				CP.is_require AS property_is_require
@@ -68,7 +52,7 @@ func (ps PropertyService) GetPropertiesFullByCatId(catId uint64) ([]*response.Pr
 			WHERE CP.cat_id = ?
 			ORDER BY CP.pos ASC`
 
-	if err := server.Db.Debug().Raw(query, catId).Scan(list).Error; err != nil {
+	if err := server.Db.Debug().Raw(query, catId).Scan(&list).Error; err != nil {
 		return list, err
 	}
 
@@ -78,45 +62,29 @@ func (ps PropertyService) GetPropertiesFullByCatId(catId uint64) ([]*response.Pr
 
 	return list, nil
 }
-func (ps PropertyService) FillCatsProperties(listCatsFull []*response.СatFull) error {
-	// catsIds := make([]uint64, 0)
-	////////////////////////////////////////
-	//for _, v := range listCats {
-	//	catsIds = append(catsIds, v)
-	//}
-	//
-	//listProperties, err := ps.GetPropertiesByCatIds(catsIds)
-	//
-	//for k1, v1:= range listCats {
-	//	for k2, v2 := range listProperties {
-	//		if v1.CatId == v2.CatId {
-	//			v1.
-	//		}
-	//	}
-	//}
+func (ps PropertyService) GetPropertiesFullByCatIds(catIds []uint64) ([]*response.PropertyFull, error) {
+	valuesPropertyService := NewValuesPropertyService()
+	list := make([]*response.PropertyFull, 0)
+	query := `
+		SELECT  ` + ps.tblFields + `,
+				KP.name AS kind_property_name, 
+				CP.pos AS property_pos,
+				CP.is_require AS property_is_require
+			FROM properties P
+				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
+				LEFT JOIN cats_properties CP ON CP.property_id = P.property_id
+			WHERE CP.cat_id IN (?)
+			ORDER BY CP.pos ASC`
 
-	//valuesPropertyService := NewValuesPropertyService()
-	//list := make([]*response.PropertyFull, 0)
-	//query := `
-	//	SELECT  *,
-	//			KP.name AS kind_property_name,
-	//			CP.pos AS property_pos,
-	//			CP.is_require AS property_is_require
-	//		FROM properties P
-	//			LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
-	//			LEFT JOIN cats_properties CP ON CP.property_id = P.property_id
-	//		WHERE CP.cat_id = ?
-	//		ORDER BY CP.pos ASC`
-	//
-	//if err := server.Db.Debug().Raw(query, catId).Scan(&list).Error; err != nil {
-	//	return list, err
-	//}
-	//
-	//if err := valuesPropertyService.PopulateWithValues(list); err != nil {
-	//	return list, err
-	//}
+	if err := server.Db.Debug().Raw(query, catIds).Scan(&list).Error; err != nil {
+		return list, err
+	}
 
-	return nil
+	if err := valuesPropertyService.PopulateWithValues(list); err != nil {
+		return list, err
+	}
+
+	return list, nil
 }
 func (ps PropertyService) GetPropertyById(propertyId uint64) (*storage.Property, error) {
 	property := new(storage.Property)
@@ -126,12 +94,12 @@ func (ps PropertyService) GetPropertyById(propertyId uint64) (*storage.Property,
 func (ps PropertyService) GetPropertyFullById(propertyId uint64) (*response.PropertyFull, error) {
 	propertyFull := new(response.PropertyFull)
 	query := `
-		SELECT *, 
+		SELECT ` + ps.tblFields + `, 
 				KP.name AS kind_property_name 
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 			WHERE P.property_id = ?`
-	err := server.Db.Debug().Raw(query, propertyId).Scan(propertyFull).Error // проверяется в контроллере
+	err := server.Db.Debug().Raw(query, propertyId).Scan(&propertyFull).Error // проверяется в контроллере
 
 	if !gorm.IsRecordNotFoundError(err) {
 		valuesPropertyService := NewValuesPropertyService()
@@ -162,7 +130,6 @@ func (ps PropertyService) Delete(propertyId uint64) error {
 
 	return server.Db.Debug().Delete(property).Error
 }
-
 func (ps PropertyService) ReWriteValuesForProperties(
 	propertyId uint64,
 	mId map[string]string,
@@ -245,30 +212,3 @@ func (ps PropertyService) ReWriteValuesForProperties(
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-//func populateWithValues(listProperties []*response.PropertyFull) error {
-//	if len(listProperties) < 1 {
-//		return errEmptyListProperties
-//	}
-//
-//	values := make([]storage.ValueProperty, 0)
-//	propIds := make([]uint64, 0)
-//
-//	for _, v := range listProperties {
-//		propIds = append(propIds, v.PropertyId)
-//	}
-//
-//	err := server.Db.Debug().Order("pos", false).Where("property_id IN (?)", propIds).Find(&values).Error
-//	if err != nil {
-//		return err
-//	}
-//
-//	for _, property := range listProperties {
-//		for _, value := range values {
-//			if property.PropertyId == value.PropertyId {
-//				property.Values = append(property.Values, value)
-//			}
-//		}
-//	}
-//
-//	return nil
-//}

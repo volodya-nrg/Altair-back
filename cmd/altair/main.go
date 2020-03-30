@@ -56,12 +56,13 @@ func setupRouter() *gin.Engine {
 		serviceKindProperties := service.NewKindPropertyService()
 		serviceProperties := service.NewPropertyService()
 
-		catsTree, err := serviceCats.GetCatsAsTree()
+		cats, err := serviceCats.GetCats()
 		if err != nil {
 			logger.Warning.Println(err)
 			c.JSON(500, err.Error())
 			return
 		}
+		catsTree := serviceCats.GetCatsAsTree(cats)
 
 		kindProperties, err := serviceKindProperties.GetKindProperties()
 		if err != nil {

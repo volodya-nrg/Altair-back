@@ -13,7 +13,7 @@ func InitDB(user string, password string, host string, port uint, dbName string)
 	dbSettings := fmt.Sprintf(pattern, user, password, host, port, dbName)
 	var err error
 
-	Db, err = gorm.Open("mysql", &dbSettings)
+	Db, err = gorm.Open("mysql", dbSettings)
 	if err != nil {
 		logger.Warning.Println(err)
 		return err

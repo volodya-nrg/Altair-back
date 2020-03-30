@@ -179,3 +179,10 @@ label + label {
 }
 
 /* ------------------\dynamic------------------- */
+
+.cat_properties {
+    box-sizing: border-box;
+    margin-top: 10px;
+    background-color: floralwhite;
+    padding: 10px;
+}

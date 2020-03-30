@@ -17,11 +17,11 @@ func GetCats(c *gin.Context) {
 	pResult := new(result)
 
 	if isFillPropertiesFull == "true" {
-		//res := getCatsFull()
-		//if res.Err != nil {
-		//	logger.Warning.Println(res.Err.Error())
-		//	res.Data = res.Err.Error()
-		//}
+		pResult = getCatsFull(asTree == "true")
+		if pResult.Err != nil {
+			logger.Warning.Println(pResult.Err.Error())
+			pResult.Data = pResult.Err.Error()
+		}
 
 	} else {
 		pResult = getCats(asTree == "true")
@@ -91,20 +91,6 @@ func getCats(isAsTree bool) *result {
 	serviceCats := service.NewCatService()
 	pResult := new(result)
 
-	if isAsTree {
-		catsTree, err := serviceCats.GetCatsAsTree()
-		if err != nil {
-			pResult.Status = 500
-			pResult.Err = err
-			return pResult
-		}
-
-		pResult.Status = 200
-		pResult.Err = nil
-		pResult.Data = catsTree
-		return pResult
-	}
-
 	cats, err := serviceCats.GetCats()
 	if err != nil {
 		pResult.Status = 500
@@ -115,26 +101,33 @@ func getCats(isAsTree bool) *result {
 	pResult.Status = 200
 	pResult.Err = nil
 	pResult.Data = cats
+
+	if isAsTree {
+		pResult.Data = serviceCats.GetCatsAsTree(cats)
+	}
+
 	return pResult
 }
-func getCatsFull() result {
-	//serviceCats := service.NewCatService()
+func getCatsFull(isAsTree bool) *result {
+	serviceCats := service.NewCatService()
+	pResult := new(result)
 
-	//if isAsTree {
-	//	catsTree, err := serviceCats.GetCatsAsTree()
-	//	if err != nil {
-	//		return result{Status: 500, Err: err, Data: nil}
-	//	}
-	//
-	//	return result{Status: 200, Err: nil, Data: catsTree}
-	//}
+	cats, err := serviceCats.GetCatsFull()
+	if err != nil {
+		pResult.Status = 500
+		pResult.Err = err
+		return pResult
+	}
 
-	//cats, err := serviceCats.GetCatsFull()
-	//if err != nil {
-	//	return result{Status: 500, Err: err, Data: nil}
-	//}
+	pResult.Status = 200
+	pResult.Err = nil
+	pResult.Data = cats
 
-	return result{Status: 200, Err: nil, Data: nil}
+	if isAsTree {
+		pResult.Data = serviceCats.GetCatsFullAsTree(cats)
+	}
+
+	return pResult
 }
 func getCatsCatId(sCatId string) *result {
 	serviceCats := service.NewCatService()
@@ -193,7 +186,7 @@ func postCats(postRequest *request.PostCat, mPropertyId map[string]string, mPos 
 		return pResult
 	}
 
-	pResult.Status = 200
+	pResult.Status = 201
 	pResult.Err = nil
 	pResult.Data = catFull
 	return pResult

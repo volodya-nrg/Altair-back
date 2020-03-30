@@ -3,11 +3,6 @@ package service
 import (
 	"altair/server"
 	"altair/storage"
-	"errors"
-)
-
-var (
-	errOnNewRecordNewKindProperty = errors.New("err on NewRecord new kindProperty")
 )
 
 func NewKindPropertyService() *KindPropertyService {
@@ -18,7 +13,7 @@ type KindPropertyService struct{}
 
 func (ks KindPropertyService) GetKindProperties() ([]*storage.KindProperty, error) {
 	properties := make([]*storage.KindProperty, 0)
-	err := server.Db.Debug().Order("kind_property_id", true).Find(properties).Error // сортировка нужна для теста
+	err := server.Db.Debug().Order("kind_property_id", true).Find(&properties).Error // сортировка нужна для теста
 
 	return properties, err
 }

@@ -24,8 +24,8 @@ import (
 func TestGetUsers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseUser, 0)
-	testCases = append(testCases, testCaseUser{
+	testCases := make([]*testCaseUser, 0)
+	testCases = append(testCases, &testCaseUser{
 		Want: 200,
 	})
 
@@ -43,25 +43,25 @@ func TestGetUsers(t *testing.T) {
 func TestGetUsersUserId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseUser, 0)
+	testCases := make([]*testCaseUser, 0)
 	serviceUsers := service.NewUserService()
-	users, err := serviceUsers.GetUsers()
+	pUsers, err := serviceUsers.GetUsers()
 	assert.NoError(t, err)
 
 	// сделаем реверсивный список
-	reversedUsers := make([]storage.User, 0)
-	for i := range users {
-		reversedUsers = append(reversedUsers, users[len(users)-1-i])
+	pReversedUsers := make([]*storage.User, 0)
+	for i := range pUsers {
+		pReversedUsers = append(pReversedUsers, pUsers[len(pUsers)-1-i])
 	}
 
 	// создаим нужные нам автоматичекие testCase-ы
-	for i, user := range reversedUsers {
+	for i, user := range pReversedUsers {
 		if i == 3 {
 			break
 		}
 
-		a := testCaseUser{MyStr: fmt.Sprint(user.UserId), Want: 200}
-		b := testCaseUser{MyStr: fmt.Sprint(user.UserId + 3), Want: 404}
+		a := &testCaseUser{MyStr: fmt.Sprint(user.UserId), Want: 200}
+		b := &testCaseUser{MyStr: fmt.Sprint(user.UserId + 3), Want: 404}
 
 		testCases = append(testCases, a, b)
 	}
@@ -80,10 +80,10 @@ func TestGetUsersUserId(t *testing.T) {
 func TestPostUsers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseUser, 0)
+	testCases := make([]*testCaseUser, 0)
 
-	testCases = append(testCases, testCaseUser{
-		RequestPost: request.PostUser{
+	testCases = append(testCases, &testCaseUser{
+		RequestPost: &request.PostUser{
 			Email:           "test@" + helpers.RandStringRunes(5) + "." + helpers.RandStringRunes(3),
 			Password:        "123456",
 			PasswordConfirm: "123456",
@@ -91,8 +91,8 @@ func TestPostUsers(t *testing.T) {
 			AgreePolicy:     true,
 		},
 		Want: 201})
-	testCases = append(testCases, testCaseUser{
-		RequestPost: request.PostUser{
+	testCases = append(testCases, &testCaseUser{
+		RequestPost: &request.PostUser{
 			Email:           "test@" + helpers.RandStringRunes(5) + "." + helpers.RandStringRunes(3),
 			Password:        "123456",
 			PasswordConfirm: "123456",
@@ -100,8 +100,8 @@ func TestPostUsers(t *testing.T) {
 			AgreePolicy:     true,
 		},
 		Want: 400})
-	testCases = append(testCases, testCaseUser{
-		RequestPost: request.PostUser{
+	testCases = append(testCases, &testCaseUser{
+		RequestPost: &request.PostUser{
 			Email:           "test@" + helpers.RandStringRunes(5) + "." + helpers.RandStringRunes(3),
 			Password:        "12345",
 			PasswordConfirm: "123456",
@@ -137,20 +137,20 @@ func TestPutUsersUserId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceUsers := service.NewUserService()
-	user := storage.User{
+	user := &storage.User{
 		Email:    "test@" + helpers.RandStringRunes(5) + "." + helpers.RandStringRunes(3),
 		Password: "123456",
 	}
-	assert.NoError(t, serviceUsers.Create(&user))
-	testCases := make([]testCaseUser, 0)
+	assert.NoError(t, serviceUsers.Create(user))
+	testCases := make([]*testCaseUser, 0)
 
-	testCases = append(testCases, testCaseUser{
+	testCases = append(testCases, &testCaseUser{
 		UserId:   fmt.Sprint(user.UserId),
 		Email:    user.Email,
 		UserName: helpers.RandStringRunes(5),
 		Want:     200,
 	})
-	testCases = append(testCases, testCaseUser{
+	testCases = append(testCases, &testCaseUser{
 		UserId:   fmt.Sprint(user.UserId + 1),
 		Email:    "test@test.te",
 		UserName: "test",
@@ -190,9 +190,9 @@ func TestPutUsersUserId(t *testing.T) {
 func TestGetCats(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseCat, 0)
-	a := testCaseCat{Want: 200}
-	b := testCaseCat{MyStr: "?asTree=true", Want: 200}
+	testCases := make([]*testCaseCat, 0)
+	a := &testCaseCat{Want: 200}
+	b := &testCaseCat{MyStr: "?asTree=true", Want: 200}
 	testCases = append(testCases, a, b)
 
 	for _, tc := range testCases {
@@ -209,7 +209,7 @@ func TestGetCats(t *testing.T) {
 func TestGetCatsCatId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseCat, 0)
+	testCases := make([]*testCaseCat, 0)
 	serviceCats := service.NewCatService()
 	cats, err := serviceCats.GetCats()
 	assert.NoError(t, err)
@@ -221,8 +221,8 @@ func TestGetCatsCatId(t *testing.T) {
 
 	// создаим нужные нам автоматичекие testCase-ы
 	for _, cat := range cats {
-		a := testCaseCat{MyStr: fmt.Sprint(cat.CatId), Want: 200}
-		b := testCaseCat{MyStr: fmt.Sprint(cat.CatId + uint64(offset)), Want: 404}
+		a := &testCaseCat{MyStr: fmt.Sprint(cat.CatId), Want: 200}
+		b := &testCaseCat{MyStr: fmt.Sprint(cat.CatId + uint64(offset)), Want: 404}
 		testCases = append(testCases, a, b)
 	}
 
@@ -242,10 +242,10 @@ func TestPostCats(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceCats := service.NewCatService()
-	testCases := make([]testCaseCat, 0)
+	testCases := make([]*testCaseCat, 0)
 
-	testCases = append(testCases, testCaseCat{
-		RequestPost: request.PostCat{
+	testCases = append(testCases, &testCaseCat{
+		RequestPost: &request.PostCat{
 			Name: helpers.RandStringRunes(5),
 		},
 		Want: 201,
@@ -277,21 +277,21 @@ func TestPutCatsCatId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceCats := service.NewCatService()
-	cat := storage.Cat{
+	cat := &storage.Cat{
 		Name: helpers.RandStringRunes(3),
 	}
-	assert.NoError(t, serviceCats.Create(&cat))
-	testCases := make([]testCaseCat, 0)
+	assert.NoError(t, serviceCats.Create(cat))
+	testCases := make([]*testCaseCat, 0)
 
-	testCases = append(testCases, testCaseCat{
-		RequestPut: request.PutCat{
+	testCases = append(testCases, &testCaseCat{
+		RequestPut: &request.PutCat{
 			CatId: cat.CatId,
 			Name:  helpers.RandStringRunes(5),
 		},
 		Want: 200,
 	})
-	testCases = append(testCases, testCaseCat{
-		RequestPut: request.PutCat{
+	testCases = append(testCases, &testCaseCat{
+		RequestPut: &request.PutCat{
 			CatId: cat.CatId + 1,
 			Name:  cat.Name,
 		},
@@ -321,10 +321,10 @@ func TestDeleteCatsCatId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceCats := service.NewCatService()
-	testCases := make([]testCaseCat, 0)
+	testCases := make([]*testCaseCat, 0)
 
-	testCases = append(testCases, testCaseCat{
-		Cat: storage.Cat{
+	testCases = append(testCases, &testCaseCat{
+		Cat: &storage.Cat{
 			Name: "test",
 		},
 		Want: 204,
@@ -332,7 +332,7 @@ func TestDeleteCatsCatId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			assert.NoError(t, serviceCats.Create(&tc.Cat))
+			assert.NoError(t, serviceCats.Create(tc.Cat))
 			w := httptest.NewRecorder()
 			req, err := http.NewRequest(http.MethodDelete, "/api/v1/cats/"+fmt.Sprint(tc.Cat.CatId), nil)
 			assert.NoError(t, err)
@@ -346,9 +346,9 @@ func TestDeleteCatsCatId(t *testing.T) {
 func TestGetAds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseAd, 0)
+	testCases := make([]*testCaseAd, 0)
 
-	testCases = append(testCases, testCaseAd{MyStr: "", Want: 200})
+	testCases = append(testCases, &testCaseAd{Want: 200})
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
@@ -364,7 +364,7 @@ func TestGetAds(t *testing.T) {
 func TestGetAdsAdId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseAd, 0)
+	testCases := make([]*testCaseAd, 0)
 	serviceAds := service.NewAdService()
 	ads, err := serviceAds.GetAds()
 	assert.NoError(t, err)
@@ -376,8 +376,8 @@ func TestGetAdsAdId(t *testing.T) {
 
 	// создаим нужные нам автоматичекие testCase-ы
 	for _, ad := range ads {
-		a := testCaseAd{MyStr: fmt.Sprint(ad.AdId), Want: 200}
-		b := testCaseAd{MyStr: fmt.Sprint(ad.AdId + uint64(offset)), Want: 404}
+		a := &testCaseAd{MyStr: fmt.Sprint(ad.AdId), Want: 200}
+		b := &testCaseAd{MyStr: fmt.Sprint(ad.AdId + uint64(offset)), Want: 404}
 		testCases = append(testCases, a, b)
 	}
 
@@ -397,10 +397,10 @@ func TestPostAds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceAds := service.NewAdService()
-	testCases := make([]testCaseAd, 0)
+	testCases := make([]*testCaseAd, 0)
 
-	testCases = append(testCases, testCaseAd{
-		RequestPost: request.PostAd{
+	testCases = append(testCases, &testCaseAd{
+		RequestPost: &request.PostAd{
 			Title: helpers.RandStringRunes(5),
 			CatId: 1,
 		},
@@ -443,23 +443,23 @@ func TestPutAdsAdId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceAds := service.NewAdService()
-	testCases := make([]testCaseAd, 0)
-	ad := storage.Ad{
+	testCases := make([]*testCaseAd, 0)
+	ad := &storage.Ad{
 		Title: helpers.RandStringRunes(3),
 		CatId: 1,
 	}
-	assert.NoError(t, serviceAds.Create(&ad))
+	assert.NoError(t, serviceAds.Create(ad))
 
-	testCases = append(testCases, testCaseAd{
-		RequestPut: request.PutAd{
+	testCases = append(testCases, &testCaseAd{
+		RequestPut: &request.PutAd{
 			AdId:  ad.AdId,
 			Title: helpers.RandStringRunes(5),
 			CatId: 2,
 		},
 		Want: 200,
 	})
-	testCases = append(testCases, testCaseAd{
-		RequestPut: request.PutAd{
+	testCases = append(testCases, &testCaseAd{
+		RequestPut: &request.PutAd{
 			AdId:  ad.AdId + 1,
 			Title: ad.Title,
 			CatId: 2,
@@ -500,10 +500,10 @@ func TestDeleteAdsAdId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceAds := service.NewAdService()
-	testCases := make([]testCaseAd, 0)
+	testCases := make([]*testCaseAd, 0)
 
-	testCases = append(testCases, testCaseAd{
-		Ad: storage.Ad{
+	testCases = append(testCases, &testCaseAd{
+		Ad: &storage.Ad{
 			Title: "test",
 			CatId: 1,
 		},
@@ -512,7 +512,7 @@ func TestDeleteAdsAdId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			assert.NoError(t, serviceAds.Create(&tc.Ad))
+			assert.NoError(t, serviceAds.Create(tc.Ad))
 			w := httptest.NewRecorder()
 			req, err := http.NewRequest(http.MethodDelete, "/api/v1/ads/"+fmt.Sprint(tc.Ad.AdId), nil)
 			assert.NoError(t, err)
@@ -526,8 +526,8 @@ func TestDeleteAdsAdId(t *testing.T) {
 func TestGetProperties(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseProperties, 0)
-	a := testCaseProperties{Want: 200}
+	testCases := make([]*testCaseProperties, 0)
+	a := &testCaseProperties{Want: 200}
 	testCases = append(testCases, a)
 
 	for _, tc := range testCases {
@@ -544,7 +544,7 @@ func TestGetProperties(t *testing.T) {
 func TestGetPropertiesPropertyId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseProperties, 0)
+	testCases := make([]*testCaseProperties, 0)
 	serviceProperties := service.NewPropertyService()
 	properties, err := serviceProperties.GetProperties(true)
 	assert.NoError(t, err)
@@ -556,9 +556,9 @@ func TestGetPropertiesPropertyId(t *testing.T) {
 
 	// создаим нужные нам автоматичекие testCase-ы
 	for _, v := range properties {
-		a := testCaseProperties{MyStr: fmt.Sprint(v.PropertyId), Want: 200}
-		b := testCaseProperties{MyStr: fmt.Sprint(v.PropertyId + uint64(offset)), Want: 404}
-		c := testCaseProperties{MyStr: "test", Want: 400}
+		a := &testCaseProperties{MyStr: fmt.Sprint(v.PropertyId), Want: 200}
+		b := &testCaseProperties{MyStr: fmt.Sprint(v.PropertyId + uint64(offset)), Want: 404}
+		c := &testCaseProperties{MyStr: "test", Want: 400}
 		testCases = append(testCases, a, b, c)
 	}
 
@@ -582,9 +582,9 @@ func TestPostProperties(t *testing.T) {
 	kindsProperties, err := serviceKindProperties.GetKindProperties()
 	assert.NoError(t, err)
 
-	myRequests := make([]testCaseProperties, 0)
-	a := testCaseProperties{
-		RequestPost: request.PostProperty{
+	myRequests := make([]*testCaseProperties, 0)
+	a := &testCaseProperties{
+		RequestPost: &request.PostProperty{
 			Name:           "",
 			KindPropertyId: 0,
 		},
@@ -593,8 +593,8 @@ func TestPostProperties(t *testing.T) {
 	myRequests = append(myRequests, a)
 
 	if len(kindsProperties) > 0 {
-		tmp := testCaseProperties{
-			RequestPost: request.PostProperty{
+		tmp := &testCaseProperties{
+			RequestPost: &request.PostProperty{
 				Title:          helpers.RandStringRunes(5),
 				Name:           helpers.RandStringRunes(5),
 				KindPropertyId: kindsProperties[0].KindPropertyId,
@@ -641,21 +641,21 @@ func TestPutPropertiesPropertyId(t *testing.T) {
 		return
 	}
 
-	pr := storage.Property{
+	pr := &storage.Property{
 		Title:          helpers.RandStringRunes(5),
 		Name:           helpers.RandStringRunes(5),
 		KindPropertyId: kindsProperties[0].KindPropertyId,
 	}
 
-	assert.NoError(t, serviceProperties.Create(&pr))
+	assert.NoError(t, serviceProperties.Create(pr))
 	defer func() {
 		assert.NoError(t, serviceProperties.Delete(pr.PropertyId))
 	}()
 
-	testCases := make([]testCaseProperties, 0)
+	testCases := make([]*testCaseProperties, 0)
 
-	testCases = append(testCases, testCaseProperties{
-		RequestPut: request.PutProperty{
+	testCases = append(testCases, &testCaseProperties{
+		RequestPut: &request.PutProperty{
 			PropertyId:     pr.PropertyId,
 			Title:          helpers.RandStringRunes(5),
 			Name:           helpers.RandStringRunes(5),
@@ -663,8 +663,8 @@ func TestPutPropertiesPropertyId(t *testing.T) {
 		},
 		Want: 200,
 	})
-	testCases = append(testCases, testCaseProperties{
-		RequestPut: request.PutProperty{
+	testCases = append(testCases, &testCaseProperties{
+		RequestPut: &request.PutProperty{
 			PropertyId:     pr.PropertyId,
 			Title:          "",
 			Name:           helpers.RandStringRunes(5),
@@ -672,8 +672,8 @@ func TestPutPropertiesPropertyId(t *testing.T) {
 		},
 		Want: 400,
 	})
-	testCases = append(testCases, testCaseProperties{
-		RequestPut: request.PutProperty{
+	testCases = append(testCases, &testCaseProperties{
+		RequestPut: &request.PutProperty{
 			PropertyId:     pr.PropertyId + 1,
 			Title:          helpers.RandStringRunes(5),
 			Name:           pr.Name,
@@ -712,10 +712,10 @@ func TestDeletePropertiesPropertyId(t *testing.T) {
 		return
 	}
 
-	testCases := make([]testCaseProperties, 0)
+	testCases := make([]*testCaseProperties, 0)
 
-	testCases = append(testCases, testCaseProperties{
-		Pr: storage.Property{
+	testCases = append(testCases, &testCaseProperties{
+		Pr: &storage.Property{
 			Name:           helpers.RandStringRunes(5),
 			KindPropertyId: kindsProperties[0].KindPropertyId,
 		},
@@ -724,7 +724,7 @@ func TestDeletePropertiesPropertyId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			assert.NoError(t, serviceProperties.Create(&tc.Pr))
+			assert.NoError(t, serviceProperties.Create(tc.Pr))
 			w := httptest.NewRecorder()
 			req, err := http.NewRequest(http.MethodDelete, "/api/v1/properties/"+fmt.Sprint(tc.Pr.PropertyId), nil)
 			assert.NoError(t, err)
@@ -738,8 +738,8 @@ func TestDeletePropertiesPropertyId(t *testing.T) {
 func TestGetKindProperties(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseKindProperties, 0)
-	a := testCaseKindProperties{Want: 200}
+	testCases := make([]*testCaseKindProperties, 0)
+	a := &testCaseKindProperties{Want: 200}
 	testCases = append(testCases, a)
 
 	for _, tc := range testCases {
@@ -756,7 +756,7 @@ func TestGetKindProperties(t *testing.T) {
 func TestGetKindPropertiesKindPropertyId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
-	testCases := make([]testCaseKindProperties, 0)
+	testCases := make([]*testCaseKindProperties, 0)
 	serviceKindProperties := service.NewKindPropertyService()
 	kindProperties, err := serviceKindProperties.GetKindProperties()
 	assert.NoError(t, err)
@@ -768,8 +768,8 @@ func TestGetKindPropertiesKindPropertyId(t *testing.T) {
 
 	// создаим нужные нам автоматичекие testCase-ы
 	for _, v := range kindProperties {
-		a := testCaseKindProperties{MyStr: fmt.Sprint(v.KindPropertyId), Want: 200}
-		b := testCaseKindProperties{MyStr: fmt.Sprint(v.KindPropertyId + uint64(offset)), Want: 404}
+		a := &testCaseKindProperties{MyStr: fmt.Sprint(v.KindPropertyId), Want: 200}
+		b := &testCaseKindProperties{MyStr: fmt.Sprint(v.KindPropertyId + uint64(offset)), Want: 404}
 		testCases = append(testCases, a, b)
 	}
 
@@ -789,16 +789,16 @@ func TestPostKindProperties(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceKindProperties := service.NewKindPropertyService()
-	testCases := make([]testCaseKindProperties, 0)
+	testCases := make([]*testCaseKindProperties, 0)
 
-	testCases = append(testCases, testCaseKindProperties{
-		RequestPost: request.PostKindProperty{
+	testCases = append(testCases, &testCaseKindProperties{
+		RequestPost: &request.PostKindProperty{
 			Name: helpers.RandStringRunes(5),
 		},
 		Want: 201,
 	})
-	testCases = append(testCases, testCaseKindProperties{
-		RequestPost: request.PostKindProperty{
+	testCases = append(testCases, &testCaseKindProperties{
+		RequestPost: &request.PostKindProperty{
 			Name: "",
 		},
 		Want: 400,
@@ -830,25 +830,25 @@ func TestPutKindPropertiesKindPropertyId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceKindProperties := service.NewKindPropertyService()
-	kp := storage.KindProperty{
+	kp := &storage.KindProperty{
 		Name: helpers.RandStringRunes(3),
 	}
-	assert.NoError(t, serviceKindProperties.Create(&kp))
+	assert.NoError(t, serviceKindProperties.Create(kp))
 	defer func() { // именно так
 		assert.NoError(t, serviceKindProperties.Delete(kp.KindPropertyId))
 	}()
 
-	testCases := make([]testCaseKindProperties, 0)
+	testCases := make([]*testCaseKindProperties, 0)
 
-	testCases = append(testCases, testCaseKindProperties{
-		RequestPut: request.PutKindProperty{
+	testCases = append(testCases, &testCaseKindProperties{
+		RequestPut: &request.PutKindProperty{
 			KindPropertyId: kp.KindPropertyId,
 			Name:           helpers.RandStringRunes(5),
 		},
 		Want: 200,
 	})
-	testCases = append(testCases, testCaseKindProperties{
-		RequestPut: request.PutKindProperty{
+	testCases = append(testCases, &testCaseKindProperties{
+		RequestPut: &request.PutKindProperty{
 			KindPropertyId: kp.KindPropertyId + 1,
 			Name:           kp.Name,
 		},
@@ -876,10 +876,10 @@ func TestDeleteKindPropertiesKindPropertyId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceKindProperties := service.NewKindPropertyService()
-	testCases := make([]testCaseKindProperties, 0)
+	testCases := make([]*testCaseKindProperties, 0)
 
-	testCases = append(testCases, testCaseKindProperties{
-		Kp: storage.KindProperty{
+	testCases = append(testCases, &testCaseKindProperties{
+		Kp: &storage.KindProperty{
 			Name: "test" + helpers.RandStringRunes(5),
 		},
 		Want: 204,
@@ -887,7 +887,7 @@ func TestDeleteKindPropertiesKindPropertyId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			assert.NoError(t, serviceKindProperties.Create(&tc.Kp))
+			assert.NoError(t, serviceKindProperties.Create(tc.Kp))
 			w := httptest.NewRecorder()
 			req, err := http.NewRequest(http.MethodDelete, "/api/v1/kind_properties/"+fmt.Sprint(tc.Kp.KindPropertyId), nil)
 			assert.NoError(t, err)
@@ -901,7 +901,7 @@ func TestDeleteKindPropertiesKindPropertyId(t *testing.T) {
 type testCaseUser struct {
 	MyStr       string
 	Want        int
-	RequestPost request.PostUser
+	RequestPost *request.PostUser
 	UserId      string
 	Email       string
 	UserName    string
@@ -909,30 +909,30 @@ type testCaseUser struct {
 type testCaseCat struct {
 	MyStr       string
 	Want        int
-	RequestPost request.PostCat
-	RequestPut  request.PutCat
-	Cat         storage.Cat
+	RequestPost *request.PostCat
+	RequestPut  *request.PutCat
+	Cat         *storage.Cat
 	CatId       string
 	CatNewName  string
 }
 type testCaseAd struct {
 	MyStr       string
 	Want        int
-	RequestPost request.PostAd
-	RequestPut  request.PutAd
-	Ad          storage.Ad
+	RequestPost *request.PostAd
+	RequestPut  *request.PutAd
+	Ad          *storage.Ad
 }
 type testCaseProperties struct {
 	MyStr       string
 	Want        int
-	RequestPost request.PostProperty
-	RequestPut  request.PutProperty
-	Pr          storage.Property
+	RequestPost *request.PostProperty
+	RequestPut  *request.PutProperty
+	Pr          *storage.Property
 }
 type testCaseKindProperties struct {
 	MyStr       string
 	Want        int
-	RequestPost request.PostKindProperty
-	RequestPut  request.PutKindProperty
-	Kp          storage.KindProperty
+	RequestPost *request.PostKindProperty
+	RequestPut  *request.PutKindProperty
+	Kp          *storage.KindProperty
 }

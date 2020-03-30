@@ -4,13 +4,8 @@ import (
 	"altair/pkg/helpers"
 	"altair/server"
 	"altair/storage"
-	"errors"
 	"fmt"
 	"os"
-)
-
-var (
-	errNotCreateNewImage = errors.New("not create new image")
 )
 
 func NewImageService() *ImageService {
@@ -27,13 +22,13 @@ type ImageService struct {
 
 func (is ImageService) GetImages(elId uint64, opt string) ([]*storage.Image, error) {
 	pImages := make([]*storage.Image, 0)
-	err := server.Db.Debug().Where("el_id = ? AND opt = ?", elId, opt).Find(pImages).Error
+	err := server.Db.Debug().Where("el_id = ? AND opt = ?", elId, opt).Find(&pImages).Error
 
 	return pImages, err
 }
 func (is ImageService) GetImagesByElIdsAndOpt(elIds []uint64, opt string) ([]*storage.Image, error) {
 	pImages := make([]*storage.Image, 0)
-	err := server.Db.Debug().Where("el_id IN (?) AND opt = ?", elIds, opt).Find(pImages).Error
+	err := server.Db.Debug().Where("el_id IN (?) AND opt = ?", elIds, opt).Find(&pImages).Error
 
 	return pImages, err
 }

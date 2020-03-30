@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	"mime/multipart"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -45,7 +46,7 @@ func PostAds(c *gin.Context) {
 		return
 	}
 
-	pResult := postAds(pPostRequest, form, c.SaveUploadedFile)
+	pResult := postAds(pPostRequest, form, c.SaveUploadedFile, c.Request.PostForm)
 	if pResult.Err != nil {
 		pResult.Data = pResult.Err.Error()
 	}
@@ -69,7 +70,7 @@ func PutAdsAdId(c *gin.Context) {
 		return
 	}
 
-	pResult := putAds(sAdId, pPutRequest, form, c.SaveUploadedFile)
+	pResult := putAds(sAdId, pPutRequest, form, c.SaveUploadedFile, c.Request.PostForm)
 	if pResult.Err != nil {
 		logger.Warning.Println(err)
 		pResult.Data = pResult.Err.Error()
@@ -104,21 +105,21 @@ func getAds(catIdSrc string) *result {
 		return res
 	}
 
-	catsTree, err := serviceCats.GetCatsAsTree()
+	pCats, err := serviceCats.GetCats()
 	if err != nil {
 		logger.Warning.Println(err)
 		res.Status = 500
 		res.Err = err
 		return res
 	}
-	catsDescendants := serviceCats.GetDescendantsNastedLoop(catsTree, catId)
+	pCatsTree := serviceCats.GetCatsAsTree(pCats)
 
+	pCatsDescendants := serviceCats.GetDescendantsNastedLoop(pCatsTree, catId)
 	sliceCatIds := make([]uint64, 0)
-	sliceCatIds = append(sliceCatIds, catsDescendants.CatId)
-	sliceCatIds = append(sliceCatIds, serviceCats.GetIdsFromCatsTree(catsDescendants)...)
+	sliceCatIds = append(sliceCatIds, serviceCats.GetIdsFromCatsTree(pCatsDescendants)...)
 	sort.Slice(sliceCatIds, func(i, j int) bool { return sliceCatIds[i] < sliceCatIds[j] })
 
-	ads, err := serviceAds.GetAdsFull(sliceCatIds)
+	pAdsFull, err := serviceAds.GetAdsFull(sliceCatIds, false)
 	if err != nil {
 		logger.Warning.Println(err)
 		res.Status = 500
@@ -128,7 +129,7 @@ func getAds(catIdSrc string) *result {
 
 	res.Status = 200
 	res.Err = nil
-	res.Data = ads
+	res.Data = pAdsFull
 	return res
 }
 func getAdsAdId(sAdId string) *result {
@@ -162,9 +163,11 @@ func getAdsAdId(sAdId string) *result {
 	res.Data = adFull
 	return res
 }
-func postAds(pPostRequest *request.PostAd, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error) *result {
+func postAds(pPostRequest *request.PostAd, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error, postForm url.Values) *result {
 	serviceAds := service.NewAdService()
 	serviceImages := service.NewImageService()
+	serviceProperties := service.NewPropertyService()
+	serviceAdDetails := service.NewAdDetailService()
 	res := new(result)
 	ad := new(storage.Ad)
 
@@ -176,6 +179,26 @@ func postAds(pPostRequest *request.PostAd, form *multipart.Form, fnUpload func(f
 
 	if err := serviceAds.Create(ad); err != nil {
 		res.Status = 400
+		res.Err = err
+		return res
+	}
+
+	propsFull, err := serviceProperties.GetPropertiesFullByCatId(ad.CatId)
+	if err != nil {
+		res.Status = 500
+		res.Err = err
+		return res
+	}
+
+	adDetails, err := serviceAdDetails.BuildDataFromRequestFormAndCatProps(ad.AdId, postForm, propsFull)
+	if err != nil {
+		res.Status = 400
+		res.Err = err
+		return res
+	}
+
+	if err := serviceAdDetails.Create(adDetails); err != nil {
+		res.Status = 500
 		res.Err = err
 		return res
 	}
@@ -211,9 +234,11 @@ func postAds(pPostRequest *request.PostAd, form *multipart.Form, fnUpload func(f
 	res.Data = adFull
 	return res
 }
-func putAds(sAdId string, pPutRequest *request.PutAd, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error) *result {
+func putAds(sAdId string, pPutRequest *request.PutAd, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error, postForm url.Values) *result {
 	serviceAds := service.NewAdService()
 	serviceImages := service.NewImageService()
+	serviceProperties := service.NewPropertyService()
+	serviceAdDetails := service.NewAdDetailService()
 	res := new(result)
 
 	adId, err := strconv.ParseUint(sAdId, 10, 64)
@@ -243,6 +268,27 @@ func putAds(sAdId string, pPutRequest *request.PutAd, form *multipart.Form, fnUp
 	pAd.IsDisabled = pPutRequest.IsDisabled
 
 	if err = serviceAds.Update(pAd); err != nil {
+		res.Status = 500
+		res.Err = err
+		return res
+	}
+
+	// достанем св-ва данной категории
+	propsFull, err := serviceProperties.GetPropertiesFullByCatId(pAd.CatId)
+	if err != nil {
+		res.Status = 500
+		res.Err = err
+		return res
+	}
+
+	pAdDetailsNew, err := serviceAdDetails.BuildDataFromRequestFormAndCatProps(pAd.AdId, postForm, propsFull)
+	if err != nil {
+		res.Status = 400
+		res.Err = err
+		return res
+	}
+
+	if err := serviceAdDetails.Update(pAd.AdId, pAdDetailsNew); err != nil {
 		res.Status = 500
 		res.Err = err
 		return res
@@ -308,7 +354,7 @@ func putAds(sAdId string, pPutRequest *request.PutAd, form *multipart.Form, fnUp
 		return res
 	}
 
-	res.Status = 201
+	res.Status = 200
 	res.Err = nil
 	res.Data = pAdFull
 	return res

@@ -19,6 +19,9 @@ $(function () {
         addValueForProperty($(this));
     });
     $(document).on('click', '.target_for_values_properties .dynamic__del', delValueForProperty);
+    $(document).on('change', '.form[action="/api/v1/ads"][method="post"] .target_for_cats_tree > select, .form-put-put-ads .target_for_cats_tree > select', function (e) {
+        changeSelectOnCatsTree($(e.target));
+    });
 
     $(".form").on("submit", function (e) {
         e.preventDefault();
@@ -129,14 +132,11 @@ function insertCatsTreeAsTagSelect(selectorTarget) {
     $targetts.each(function () {
         var $self = $(this);
         var name = $self.data("name");
-        var isRequire = $self.data("is_require");
         var $selectCopy = $select.clone();
 
         $selectCopy.attr("name", name);
-        if (!isRequire) {
-            $selectCopy.prepend('<option value="0"></option>');
-            $selectCopy.val(0);
-        }
+        $selectCopy.prepend('<option value=""></option>');
+        $selectCopy.val(0);
 
         $self.append($selectCopy);
     });
@@ -313,6 +313,8 @@ function formPutPutCats(data, $form) {
 }
 
 function formPutPutAds(data, $form) {
+    var $selectCat = $form.find('select[name="catId"]');
+
     $form.removeClass('hidden');
     $form.find('input[name="adId"]').val(data.adId);
     $form.find('input[name="title"]').val(data.title);
@@ -321,11 +323,28 @@ function formPutPutAds(data, $form) {
     $form.find('textarea[name="text"]').val(data.text);
     $form.find('input[name="price"]').val(data.price);
     $form.find('input[name="isDisabled"]').prop("checked", data.isDisabled);
-    $form.find('select[name="catId"]').val(data.catId);
+    $selectCat.val(data.catId);
 
     if (data.images.length) {
         appendPhotos($form, "filesAlreadyHas[]", data.images);
     }
+
+    // в пришедшие позже св-ва вставим актуальные
+    changeSelectOnCatsTree($selectCat, function () {
+        var $box = $form.find('.cat_properties');
+
+        for (var i = 0; i < data.details.length; i++) {
+            var detail = data.details[i];
+            var kind = detail.kindPropertyName;
+
+            if (kind === "radio") {
+                $box.find('input[type="radio"][name="' + detail.propertyName + '"][value="' + detail.value + '"]').prop("checked", true);
+
+            } else {
+                $box.find('[name="' + detail.propertyName + '"]').val(detail.value);
+            }
+        }
+    });
 }
 
 function formPutPutProperties(data, $form) {
@@ -434,4 +453,135 @@ function delValueForProperty(e) {
     var $self = $(e.target);
     var $parent = $self.closest('.dynamic__item');
     $parent.remove();
+}
+
+function changeSelectOnCatsTree($select, cb) {
+    var catId = $select.val();
+    var $wrapper = $('<div class="cat_properties"></div>');
+
+    $.ajax({
+        method: 'get',
+        url: '/api/v1/cats/' + catId,
+        dataType: 'json',
+        beforeSend: function (xhr) {
+            $select.attr("disabled", true);
+            $select.parent().children(".cat_properties").remove();
+        }
+    }).done(function (response) {
+        var htmlCatProperties = buildHTMLCatProperties(response);
+
+        if (htmlCatProperties) {
+            $wrapper.append($(htmlCatProperties));
+            $select.after($wrapper);
+        }
+
+        if (cb) {
+            cb();
+        }
+
+    }).fail(function (response) {
+        alert("Status: " + response.status + "; " + response.responseText);
+
+    }).always(function () {
+        $select.attr("disabled", false);
+    });
+}
+
+function buildHTMLCatProperties(oCatData) {
+    var reciever = [];
+
+    for (var i = 0; i < oCatData.properties.length; i++) {
+        var property = oCatData.properties[i];
+        var symbolRequire = property.propertyIsRequire ? ' *' : '';
+        var title = property.title;
+        var tag = getHTMLTagCatProperty(property);
+        var row = [
+            '<div class="form__row">',
+            '   <div class="form__title">' + title + symbolRequire + '</div>',
+            tag,
+            '</div>',
+        ].join('');
+
+        reciever.push(row);
+    }
+
+    return reciever.join('');
+}
+
+function getHTMLTagCatProperty(property) {
+    var propRequire = property.propertyIsRequire ? 'required="required"' : "";
+    var kind = property.kindPropertyName;
+    var name = property.name;
+    var pos = property.propertyPos;
+    var propId = property.propertyId;
+    var result = 'unknown';
+    var el = '';
+
+    if (kind === 'input') {
+        el += '<input name="' + name + '" type="text" ' + propRequire + ' data-pos="' + pos + '" value=""/>';
+
+    } else if (kind === 'input_number') {
+        el += '<input name="' + name + '" type="text" ' + propRequire + ' data-pos="' + pos + '" value=""/>';
+
+    } else if (kind === 'input_date') {
+        el += '<input name="' + name + '" type="date" ' + propRequire + ' data-pos="' + pos + '" value=""/>';
+
+    } else if (kind === 'input_datetime') {
+        el += '<input name="' + name + '" type="datetime-local" ' + propRequire + ' data-pos="' + pos + '" value=""/>';
+
+    } else if (kind === 'textarea') {
+        el += '<textarea name="' + name + '" ' + propRequire + ' data-pos="' + pos + '"></textarea>';
+
+    } else if (kind === 'photo') {
+        el += '<div class="photo"></div>';
+
+    } else if (kind === 'radio' && property.values) {
+        for (var i = 0; i < property.values.length; i++) {
+            var oVal = property.values[i];
+            el += [
+                '<label>',
+                '   <input type="radio" value="' + oVal.valueId + '" name="' + name + '" ' + propRequire + ' data-pos="' + oVal.pos + '"/>',
+                oVal.title,
+                '</label>'
+            ].join('');
+        }
+
+    } else if (kind === 'checkbox') {
+        if (property.values.length > 1) {
+            for (var i = 0; i < property.values.length; i++) {
+                var oVal = property.values[i];
+                el += [
+                    '<label>',
+                    '   <input type="checkbox" value="' + oVal.valueId + '" name="' + name + '" ' + propRequire + ' data-pos="' + oVal.pos + '"/>',
+                    oVal.title,
+                    '</label>'
+                ].join('');
+            }
+
+        } else {
+            el += [
+                '<label>',
+                '   <input type="checkbox" value="' + propId + '" name="' + name + '" ' + propRequire + ' data-pos="' + property.propertyPos + '"/>',
+                property.title,
+                '</label>'
+            ].join('');
+        }
+
+    } else if (kind === 'select' && property.values.length) {
+        el += '<select name="' + name + '" ' + propRequire + ' data-pos="' + pos + '">';
+        el += '<option selected="selected" value="" data-pos="0"></option>';
+
+        for (var i = 0; i < property.values.length; i++) {
+            var oVal = property.values[i];
+            el += '<option value="' + oVal.valueId + '" data-pos="' + oVal.pos + '">' + oVal.title + '</option>';
+        }
+
+        el += '</select>';
+    }
+
+    if (el) {
+        result = el;
+    }
+
+    return result;
 }
