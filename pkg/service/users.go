@@ -4,6 +4,7 @@ import (
 	"altair/pkg/helpers"
 	"altair/server"
 	"altair/storage"
+	"github.com/jinzhu/gorm"
 	"unicode/utf8"
 )
 
@@ -18,15 +19,15 @@ func (userService UserService) Get() bool {
 }
 func (userService UserService) GetUsers() ([]*storage.User, error) {
 	users := make([]*storage.User, 0)
-	err := server.Db.Debug().Order("user_id", true).Find(&users).Error
+	err := server.Db.Debug().Order("created_at desc").Find(&users).Error
 	return users, err
 }
 func (userService UserService) GetUserByID(userId uint64) (*storage.User, error) {
 	user := new(storage.User)
-	err := server.Db.Debug().First(user, userId).Error // проверяется в контроллере
+	err := server.Db.Debug().First(user, userId).Error
 	return user, err
 }
-func (userService UserService) Create(user *storage.User) error {
+func (userService UserService) Create(user *storage.User, tx *gorm.DB) error {
 	if err := validate(user); err != nil {
 		return err
 	}
@@ -35,16 +36,25 @@ func (userService UserService) Create(user *storage.User) error {
 	}
 
 	user.Password = helpers.HashAndSalt(user.Password)
-	err := server.Db.Debug().Create(user).Error
+
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	err := tx.Create(user).Error
 
 	return err
 }
-func (userService UserService) Update(user *storage.User) error {
+func (userService UserService) Update(user *storage.User, tx *gorm.DB) error {
 	if err := validate(user); err != nil {
 		return err
 	}
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
 
-	err := server.Db.Debug().Save(user).Error
+	err := tx.Save(user).Error
+
 	return err
 }
 

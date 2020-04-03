@@ -25,9 +25,8 @@ func TestGetUsers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	testCases := make([]*testCaseUser, 0)
-	testCases = append(testCases, &testCaseUser{
-		Want: 200,
-	})
+
+	testCases = append(testCases, &testCaseUser{Want: 200})
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
@@ -45,25 +44,20 @@ func TestGetUsersUserId(t *testing.T) {
 	r := setupRouter()
 	testCases := make([]*testCaseUser, 0)
 	serviceUsers := service.NewUserService()
-	pUsers, err := serviceUsers.GetUsers()
+	pReversedUsers, err := serviceUsers.GetUsers()
 	assert.NoError(t, err)
-
-	// сделаем реверсивный список
-	pReversedUsers := make([]*storage.User, 0)
-	for i := range pUsers {
-		pReversedUsers = append(pReversedUsers, pUsers[len(pUsers)-1-i])
-	}
 
 	// создаим нужные нам автоматичекие testCase-ы
 	for i, user := range pReversedUsers {
-		if i == 3 {
+		if i == 2 {
 			break
 		}
 
 		a := &testCaseUser{MyStr: fmt.Sprint(user.UserId), Want: 200}
-		b := &testCaseUser{MyStr: fmt.Sprint(user.UserId + 3), Want: 404}
+		b := &testCaseUser{MyStr: fmt.Sprint(user.UserId + 2), Want: 404}
+		c := &testCaseUser{MyStr: "test", Want: 500}
 
-		testCases = append(testCases, a, b)
+		testCases = append(testCases, a, b, c)
 	}
 
 	for _, tc := range testCases {
@@ -141,7 +135,7 @@ func TestPutUsersUserId(t *testing.T) {
 		Email:    "test@" + helpers.RandStringRunes(5) + "." + helpers.RandStringRunes(3),
 		Password: "123456",
 	}
-	assert.NoError(t, serviceUsers.Create(user))
+	assert.NoError(t, serviceUsers.Create(user, nil))
 	testCases := make([]*testCaseUser, 0)
 
 	testCases = append(testCases, &testCaseUser{
@@ -268,7 +262,7 @@ func TestPostCats(t *testing.T) {
 			if w.Code == 201 {
 				cat := new(storage.Cat)
 				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), cat))
-				assert.NoError(t, serviceCats.Delete(cat.CatId))
+				assert.NoError(t, serviceCats.Delete(cat.CatId, nil))
 			}
 		})
 	}
@@ -280,7 +274,7 @@ func TestPutCatsCatId(t *testing.T) {
 	cat := &storage.Cat{
 		Name: helpers.RandStringRunes(3),
 	}
-	assert.NoError(t, serviceCats.Create(cat))
+	assert.NoError(t, serviceCats.Create(cat, nil))
 	testCases := make([]*testCaseCat, 0)
 
 	testCases = append(testCases, &testCaseCat{
@@ -315,7 +309,7 @@ func TestPutCatsCatId(t *testing.T) {
 		})
 	}
 
-	assert.NoError(t, serviceCats.Delete(cat.CatId))
+	assert.NoError(t, serviceCats.Delete(cat.CatId, nil))
 }
 func TestDeleteCatsCatId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -332,7 +326,7 @@ func TestDeleteCatsCatId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			assert.NoError(t, serviceCats.Create(tc.Cat))
+			assert.NoError(t, serviceCats.Create(tc.Cat, nil))
 			w := httptest.NewRecorder()
 			req, err := http.NewRequest(http.MethodDelete, "/api/v1/cats/"+fmt.Sprint(tc.Cat.CatId), nil)
 			assert.NoError(t, err)
@@ -366,7 +360,7 @@ func TestGetAdsAdId(t *testing.T) {
 	r := setupRouter()
 	testCases := make([]*testCaseAd, 0)
 	serviceAds := service.NewAdService()
-	ads, err := serviceAds.GetAds()
+	ads, err := serviceAds.GetAds(true)
 	assert.NoError(t, err)
 	offset := 2
 
@@ -397,6 +391,7 @@ func TestPostAds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceAds := service.NewAdService()
+	serviceImages := service.NewImageService()
 	testCases := make([]*testCaseAd, 0)
 
 	testCases = append(testCases, &testCaseAd{
@@ -434,7 +429,7 @@ func TestPostAds(t *testing.T) {
 			if w.Code == 201 {
 				ad := new(storage.Ad)
 				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), ad))
-				assert.NoError(t, serviceAds.Delete(ad.AdId))
+				assert.NoError(t, serviceAds.Delete(ad.AdId, nil, serviceImages))
 			}
 		})
 	}
@@ -443,12 +438,13 @@ func TestPutAdsAdId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := setupRouter()
 	serviceAds := service.NewAdService()
+	serviceImages := service.NewImageService()
 	testCases := make([]*testCaseAd, 0)
 	ad := &storage.Ad{
 		Title: helpers.RandStringRunes(3),
 		CatId: 1,
 	}
-	assert.NoError(t, serviceAds.Create(ad))
+	assert.NoError(t, serviceAds.Create(ad, nil))
 
 	testCases = append(testCases, &testCaseAd{
 		RequestPut: &request.PutAd{
@@ -494,7 +490,7 @@ func TestPutAdsAdId(t *testing.T) {
 		})
 	}
 
-	assert.NoError(t, serviceAds.Delete(ad.AdId))
+	assert.NoError(t, serviceAds.Delete(ad.AdId, nil, serviceImages))
 }
 func TestDeleteAdsAdId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -512,7 +508,7 @@ func TestDeleteAdsAdId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			assert.NoError(t, serviceAds.Create(tc.Ad))
+			assert.NoError(t, serviceAds.Create(tc.Ad, nil))
 			w := httptest.NewRecorder()
 			req, err := http.NewRequest(http.MethodDelete, "/api/v1/ads/"+fmt.Sprint(tc.Ad.AdId), nil)
 			assert.NoError(t, err)
@@ -622,7 +618,7 @@ func TestPostProperties(t *testing.T) {
 			if w.Code == 201 {
 				p := new(storage.Property)
 				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), p))
-				assert.NoError(t, serviceProperties.Delete(p.PropertyId))
+				assert.NoError(t, serviceProperties.Delete(p.PropertyId, nil))
 			}
 		})
 	}
@@ -647,9 +643,9 @@ func TestPutPropertiesPropertyId(t *testing.T) {
 		KindPropertyId: kindsProperties[0].KindPropertyId,
 	}
 
-	assert.NoError(t, serviceProperties.Create(pr))
+	assert.NoError(t, serviceProperties.Create(pr, nil))
 	defer func() {
-		assert.NoError(t, serviceProperties.Delete(pr.PropertyId))
+		assert.NoError(t, serviceProperties.Delete(pr.PropertyId, nil))
 	}()
 
 	testCases := make([]*testCaseProperties, 0)
@@ -724,7 +720,7 @@ func TestDeletePropertiesPropertyId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			assert.NoError(t, serviceProperties.Create(tc.Pr))
+			assert.NoError(t, serviceProperties.Create(tc.Pr, nil))
 			w := httptest.NewRecorder()
 			req, err := http.NewRequest(http.MethodDelete, "/api/v1/properties/"+fmt.Sprint(tc.Pr.PropertyId), nil)
 			assert.NoError(t, err)
@@ -761,9 +757,10 @@ func TestGetKindPropertiesKindPropertyId(t *testing.T) {
 	kindProperties, err := serviceKindProperties.GetKindProperties()
 	assert.NoError(t, err)
 	offset := 2
+	lenKindProperties := len(kindProperties)
 
-	if len(kindProperties) > offset {
-		kindProperties = kindProperties[len(kindProperties)-offset:]
+	if lenKindProperties > offset {
+		kindProperties = kindProperties[lenKindProperties-offset:]
 	}
 
 	// создаим нужные нам автоматичекие testCase-ы
@@ -821,7 +818,7 @@ func TestPostKindProperties(t *testing.T) {
 			if w.Code == 201 {
 				kp := new(storage.KindProperty)
 				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), kp))
-				assert.NoError(t, serviceKindProperties.Delete(kp.KindPropertyId))
+				assert.NoError(t, serviceKindProperties.Delete(kp.KindPropertyId, nil))
 			}
 		})
 	}
@@ -833,9 +830,9 @@ func TestPutKindPropertiesKindPropertyId(t *testing.T) {
 	kp := &storage.KindProperty{
 		Name: helpers.RandStringRunes(3),
 	}
-	assert.NoError(t, serviceKindProperties.Create(kp))
+	assert.NoError(t, serviceKindProperties.Create(kp, nil))
 	defer func() { // именно так
-		assert.NoError(t, serviceKindProperties.Delete(kp.KindPropertyId))
+		assert.NoError(t, serviceKindProperties.Delete(kp.KindPropertyId, nil))
 	}()
 
 	testCases := make([]*testCaseKindProperties, 0)
@@ -887,9 +884,39 @@ func TestDeleteKindPropertiesKindPropertyId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			assert.NoError(t, serviceKindProperties.Create(tc.Kp))
+			assert.NoError(t, serviceKindProperties.Create(tc.Kp, nil))
 			w := httptest.NewRecorder()
 			req, err := http.NewRequest(http.MethodDelete, "/api/v1/kind_properties/"+fmt.Sprint(tc.Kp.KindPropertyId), nil)
+			assert.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+			assert.Equal(t, tc.Want, w.Code)
+		})
+	}
+}
+
+func TestSearchAds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := setupRouter()
+	testCases := make([]*testSearchAds, 0)
+
+	testCases = append(testCases, &testSearchAds{Query: helpers.RandStringRunes(10), Want: 200})
+	testCases = append(testCases, &testSearchAds{Query: "", Want: 400})
+	testCases = append(testCases, &testSearchAds{Query: "t", Want: 400})
+
+	for _, tc := range testCases {
+		t.Run("", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			var query string
+
+			if tc.Query != "" {
+				query += "q=" + tc.Query
+			}
+			if query != "" {
+				query = "?" + query
+			}
+
+			req, err := http.NewRequest(http.MethodGet, "/api/v1/search/ads"+query, nil)
 			assert.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 			r.ServeHTTP(w, req)
@@ -935,4 +962,9 @@ type testCaseKindProperties struct {
 	RequestPost *request.PostKindProperty
 	RequestPut  *request.PutKindProperty
 	Kp          *storage.KindProperty
+}
+type testSearchAds struct {
+	Query string
+	CatId uint64
+	Want  int
 }

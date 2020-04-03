@@ -25,7 +25,7 @@ func (vs ValuesPropertyService) PopulateWithValues(listProperties []*response.Pr
 	}
 
 	err := server.Db.Debug().
-		Order("pos", false).
+		Order("pos asc").
 		Where("property_id IN (?)", propIds).
 		Find(&values).Error
 	if err != nil {
@@ -45,11 +45,9 @@ func (vs ValuesPropertyService) PopulateWithValues(listProperties []*response.Pr
 func (vs ValuesPropertyService) GetValuesByPropertyId(propId uint64) ([]*storage.ValueProperty, error) {
 	values := make([]*storage.ValueProperty, 0)
 	err := server.Db.Debug().
-		Order("pos", false).
+		Order("pos asc").
 		Where("property_id = ?", propId).
 		Find(&values).Error
 
 	return values, err
 }
-
-// private -------------------------------------------------------------------------------------------------------------

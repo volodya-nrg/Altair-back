@@ -11,7 +11,7 @@ import (
 
 func NewPropertyService() *PropertyService {
 	prop := new(PropertyService)
-	prop.tblFields = "P.property_id, P.title, P.kind_property_id, P.name, P.is_can_as_filter, P.max_int"
+	prop.tblFields = "P.property_id, P.title, P.kind_property_id, P.name"
 
 	return prop
 }
@@ -22,15 +22,21 @@ type PropertyService struct {
 
 func (ps PropertyService) GetProperties(isOrderDesc bool) ([]*storage.Property, error) {
 	list := make([]*storage.Property, 0)
-	err := server.Db.Debug().Order("property_id", isOrderDesc).Find(&list).Error
+	order := "asc"
+
+	if isOrderDesc {
+		order = "desc"
+	}
+
+	err := server.Db.Debug().Order("property_id " + order).Find(&list).Error
 
 	return list, err
 }
-func (ps PropertyService) GetPropertiesFull() ([]*response.PropertyFull, error) {
-	// тут в запросе спец-но не полные данные, т.к. категории нет. Только добавляем kindPropertyName
-	list := make([]*response.PropertyFull, 0)
+func (ps PropertyService) GetPropertiesWithKindName() ([]*response.PropertyWithKindName, error) {
+	list := make([]*response.PropertyWithKindName, 0)
 	query := `
-		SELECT ` + ps.tblFields + `, KP.name AS kind_property_name
+		SELECT ` + ps.tblFields + `, 
+				KP.name AS kind_property_name
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 			ORDER BY P.property_id ASC`
@@ -38,18 +44,24 @@ func (ps PropertyService) GetPropertiesFull() ([]*response.PropertyFull, error) 
 
 	return list, err
 }
-func (ps PropertyService) GetPropertiesFullByCatId(catId uint64) ([]*response.PropertyFull, error) {
-	valuesPropertyService := NewValuesPropertyService()
+func (ps PropertyService) GetPropertiesFullByCatId(catId uint64, withPropsOnlyFiltered bool, valuesPropertyService *ValuesPropertyService) ([]*response.PropertyFull, error) {
 	list := make([]*response.PropertyFull, 0)
+	var onlyFiltered string
+
+	if withPropsOnlyFiltered {
+		onlyFiltered = "AND CP.is_can_as_filter = 1"
+	}
+
 	query := `
 		SELECT  ` + ps.tblFields + `, 
 				KP.name AS kind_property_name, 
 				CP.pos AS property_pos,
-				CP.is_require AS property_is_require
+				CP.is_require AS property_is_require,
+				CP.is_can_as_filter AS property_is_can_as_filter
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 				LEFT JOIN cats_properties CP ON CP.property_id = P.property_id
-			WHERE CP.cat_id = ?
+			WHERE CP.cat_id = ? ` + onlyFiltered + `
 			ORDER BY CP.pos ASC`
 
 	if err := server.Db.Debug().Raw(query, catId).Scan(&list).Error; err != nil {
@@ -62,14 +74,14 @@ func (ps PropertyService) GetPropertiesFullByCatId(catId uint64) ([]*response.Pr
 
 	return list, nil
 }
-func (ps PropertyService) GetPropertiesFullByCatIds(catIds []uint64) ([]*response.PropertyFull, error) {
-	valuesPropertyService := NewValuesPropertyService()
+func (ps PropertyService) GetPropertiesFullByCatIds(catIds []uint64, valuesPropertyService *ValuesPropertyService) ([]*response.PropertyFull, error) {
 	list := make([]*response.PropertyFull, 0)
 	query := `
 		SELECT  ` + ps.tblFields + `,
 				KP.name AS kind_property_name, 
 				CP.pos AS property_pos,
-				CP.is_require AS property_is_require
+				CP.is_require AS property_is_require,
+				CP.is_can_as_filter AS property_is_can_as_filter
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 				LEFT JOIN cats_properties CP ON CP.property_id = P.property_id
@@ -88,10 +100,10 @@ func (ps PropertyService) GetPropertiesFullByCatIds(catIds []uint64) ([]*respons
 }
 func (ps PropertyService) GetPropertyById(propertyId uint64) (*storage.Property, error) {
 	property := new(storage.Property)
-
-	return property, server.Db.Debug().First(property, propertyId).Error // проверяется в контроллере
+	err := server.Db.Debug().First(property, propertyId).Error
+	return property, err
 }
-func (ps PropertyService) GetPropertyFullById(propertyId uint64) (*response.PropertyFull, error) {
+func (ps PropertyService) GetPropertyFullById(propertyId uint64, valuesPropertyService *ValuesPropertyService) (*response.PropertyFull, error) {
 	propertyFull := new(response.PropertyFull)
 	query := `
 		SELECT ` + ps.tblFields + `, 
@@ -101,8 +113,8 @@ func (ps PropertyService) GetPropertyFullById(propertyId uint64) (*response.Prop
 			WHERE P.property_id = ?`
 	err := server.Db.Debug().Raw(query, propertyId).Scan(&propertyFull).Error // проверяется в контроллере
 
+	// добавим данные если есть куда
 	if !gorm.IsRecordNotFoundError(err) {
-		valuesPropertyService := NewValuesPropertyService()
 		pValues, err := valuesPropertyService.GetValuesByPropertyId(propertyFull.PropertyId)
 		if err != nil {
 			return propertyFull, err
@@ -113,25 +125,40 @@ func (ps PropertyService) GetPropertyFullById(propertyId uint64) (*response.Prop
 
 	return propertyFull, err
 }
-func (ps PropertyService) Create(property *storage.Property) error {
+func (ps PropertyService) Create(property *storage.Property, tx *gorm.DB) error {
 	if !server.Db.Debug().NewRecord(property) {
 		return errOnNewRecordNewProperty
 	}
 
-	return server.Db.Debug().Create(property).Error
-}
-func (ps PropertyService) Update(property *storage.Property) error {
-	return server.Db.Debug().Save(property).Error
-}
-func (ps PropertyService) Delete(propertyId uint64) error {
-	property := storage.Property{
-		PropertyId: propertyId,
+	if tx == nil {
+		tx = server.Db.Debug()
 	}
 
-	return server.Db.Debug().Delete(property).Error
+	err := tx.Create(property).Error
+
+	return err
+}
+func (ps PropertyService) Update(property *storage.Property, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	err := tx.Save(property).Error
+
+	return err
+}
+func (ps PropertyService) Delete(propertyId uint64, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	err := tx.Delete(storage.Property{}, "property_id = ?", propertyId).Error
+
+	return err
 }
 func (ps PropertyService) ReWriteValuesForProperties(
 	propertyId uint64,
+	tx *gorm.DB,
 	mId map[string]string,
 	mTitle map[string]string,
 	mPos map[string]string) ([]storage.ValueProperty, error) {
@@ -139,6 +166,10 @@ func (ps PropertyService) ReWriteValuesForProperties(
 	listOld := make([]storage.ValueProperty, 0)
 	listNew := make([]storage.ValueProperty, 0)
 	listResult := make([]storage.ValueProperty, 0)
+
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
 
 	// возьмем старый список
 	if err := server.Db.Debug().Where("property_id = ?", propertyId).Find(&listOld).Error; err != nil {
@@ -181,7 +212,7 @@ func (ps PropertyService) ReWriteValuesForProperties(
 		}
 	}
 	if len(removeId) > 0 {
-		err := server.Db.Debug().Where("value_id IN (?)", removeId).Delete(storage.ValueProperty{}).Error
+		err := tx.Where("value_id IN (?)", removeId).Delete(storage.ValueProperty{}).Error
 		if err != nil {
 			return listResult, err
 		}
@@ -195,12 +226,12 @@ func (ps PropertyService) ReWriteValuesForProperties(
 				return listResult, errOnNewRecordNewProperty
 			}
 
-			if err := server.Db.Debug().Create(&v).Error; err != nil {
+			if err := tx.Create(&v).Error; err != nil {
 				return listResult, err
 			}
 
 		} else {
-			if err := server.Db.Debug().Model(&v).Update(v).Error; err != nil {
+			if err := tx.Model(&v).Update(v).Error; err != nil {
 				return listResult, err
 			}
 		}
@@ -210,5 +241,3 @@ func (ps PropertyService) ReWriteValuesForProperties(
 
 	return listResult, nil
 }
-
-// private -------------------------------------------------------------------------------------------------------------

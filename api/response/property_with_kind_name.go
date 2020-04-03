@@ -2,8 +2,7 @@ package response
 
 import "altair/storage"
 
-type AdDetailExt struct {
-	*storage.AdDetail
-	PropertyName     string `json:"propertyName" gorm:"column:property_name"`
+type PropertyWithKindName struct {
+	*storage.Property
 	KindPropertyName string `json:"kindPropertyName" gorm:"column:kind_property_name"`
 }

@@ -2,8 +2,10 @@ package controller
 
 import (
 	"altair/api/request"
+	"altair/api/response"
 	"altair/pkg/logger"
 	"altair/pkg/service"
+	"altair/server"
 	"altair/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
@@ -14,33 +16,35 @@ import (
 func GetCats(c *gin.Context) {
 	asTree := c.DefaultQuery("asTree", "false")
 	isFillPropertiesFull := c.DefaultQuery("isFillPropertiesFull", "false")
-	pResult := new(result)
+	res := response.Result{}
 
 	if isFillPropertiesFull == "true" {
-		pResult = getCatsFull(asTree == "true")
-		if pResult.Err != nil {
-			logger.Warning.Println(pResult.Err.Error())
-			pResult.Data = pResult.Err.Error()
+		res = getCatsFull(asTree == "true")
+		if res.Err != nil {
+			logger.Warning.Println(res.Err.Error())
+			res.Data = res.Err.Error()
 		}
 
 	} else {
-		pResult = getCats(asTree == "true")
-		if pResult.Err != nil {
-			logger.Warning.Println(pResult.Err.Error())
-			pResult.Data = pResult.Err.Error()
+		res = getCats(asTree == "true")
+		if res.Err != nil {
+			logger.Warning.Println(res.Err.Error())
+			res.Data = res.Err.Error()
 		}
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func GetCatsCatId(c *gin.Context) {
-	pResult := getCatsCatId(c.Param("catId"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	withPropsOnlyFiltered := c.DefaultQuery("withPropsOnlyFiltered", "false")
+
+	res := getCatsCatId(c.Param("catId"), withPropsOnlyFiltered == "true")
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func PostCats(c *gin.Context) {
 	pPostRequest := new(request.PostCat)
@@ -51,13 +55,18 @@ func PostCats(c *gin.Context) {
 		return
 	}
 
-	pResult := postCats(pPostRequest, c.PostFormMap("propertyId"), c.PostFormMap("pos"), c.PostFormMap("isRequire"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	mPropertyId := c.PostFormMap("propertyId")
+	mPos := c.PostFormMap("pos")
+	mIsRequire := c.PostFormMap("isRequire")
+	mIsCanAsFilter := c.PostFormMap("isCanAsFilter")
+
+	res := postCats(pPostRequest, mPropertyId, mPos, mIsRequire, mIsCanAsFilter)
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func PutCatsCatId(c *gin.Context) {
 	pPutRequest := new(request.PutCat)
@@ -68,200 +77,224 @@ func PutCatsCatId(c *gin.Context) {
 		return
 	}
 
-	pResult := putCatsCatId(c.Param("catId"), pPutRequest, c.PostFormMap("propertyId"), c.PostFormMap("pos"), c.PostFormMap("isRequire"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	mPropertyId := c.PostFormMap("propertyId")
+	mPos := c.PostFormMap("pos")
+	mIsRequire := c.PostFormMap("isRequire")
+	mIsCanAsFilter := c.PostFormMap("isCanAsFilter")
+
+	res := putCatsCatId(c.Param("catId"), pPutRequest, mPropertyId, mPos, mIsRequire, mIsCanAsFilter)
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func DeleteCatsCatId(c *gin.Context) {
-	pResult := deleteCatsCatId(c.Param("catId"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	res := deleteCatsCatId(c.Param("catId"))
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func getCats(isAsTree bool) *result {
+func getCats(isAsTree bool) response.Result {
 	serviceCats := service.NewCatService()
-	pResult := new(result)
+	res := response.Result{}
 
 	cats, err := serviceCats.GetCats()
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = cats
+	res.Status = 200
+	res.Err = nil
+	res.Data = cats
 
 	if isAsTree {
-		pResult.Data = serviceCats.GetCatsAsTree(cats)
+		res.Data = serviceCats.GetCatsAsTree(cats)
 	}
 
-	return pResult
+	return res
 }
-func getCatsFull(isAsTree bool) *result {
+func getCatsFull(isAsTree bool) response.Result {
 	serviceCats := service.NewCatService()
-	pResult := new(result)
+	serviceProperties := service.NewPropertyService()
+	serviceValuesProperties := service.NewValuesPropertyService()
+	res := response.Result{}
 
-	cats, err := serviceCats.GetCatsFull()
+	cats, err := serviceCats.GetCatsFull(serviceProperties, serviceValuesProperties)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = cats
+	res.Status = 200
+	res.Err = nil
+	res.Data = cats
 
 	if isAsTree {
-		pResult.Data = serviceCats.GetCatsFullAsTree(cats)
+		res.Data = serviceCats.GetCatsFullAsTree(cats)
 	}
 
-	return pResult
+	return res
 }
-func getCatsCatId(sCatId string) *result {
+func getCatsCatId(sCatId string, withPropsOnlyFiltered bool) response.Result {
 	serviceCats := service.NewCatService()
-	pResult := new(result)
+	serviceProperties := service.NewPropertyService()
+	serviceValuesProperties := service.NewValuesPropertyService()
+	res := response.Result{}
 
 	catId, err := strconv.ParseUint(sCatId, 10, 64)
 	if err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
-	catFull, err := serviceCats.GetCatFullByID(catId)
+	catFull, err := serviceCats.GetCatFullByID(catId, withPropsOnlyFiltered, serviceProperties, serviceValuesProperties)
 	if gorm.IsRecordNotFoundError(err) {
-		pResult.Status = 404
-		pResult.Err = err
-		return pResult
+		res.Status = 404
+		res.Err = err
+		return res
 
 	} else if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = catFull
-	return pResult
+	res.Status = 200
+	res.Err = nil
+	res.Data = catFull
+	return res
 }
-func postCats(postRequest *request.PostCat, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string) *result {
+func postCats(postRequest *request.PostCat, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string, mIsCanAsFilter map[string]string) response.Result {
 	serviceCats := service.NewCatService()
-	pResult := new(result)
+	serviceProperties := service.NewPropertyService()
+	serviceValuesProperties := service.NewValuesPropertyService()
+	res := response.Result{}
 	pCat := new(storage.Cat)
+	tx := server.Db.Debug().Begin()
 
 	pCat.Name = postRequest.Name
 	pCat.ParentId = postRequest.ParentId
 	pCat.Pos = postRequest.Pos
 
-	if err := serviceCats.Create(pCat); err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+	if err := serviceCats.Create(pCat, tx); err != nil {
+		tx.Rollback()
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
 	// обработаем св-ва для категории
-	if _, err := serviceCats.ReWriteCatsProperties(pCat.CatId, mPropertyId, mPos, mIsRequire); err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+	if _, err := serviceCats.ReWriteCatsProperties(pCat.CatId, tx, mPropertyId, mPos, mIsRequire, mIsCanAsFilter); err != nil {
+		tx.Rollback()
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	catFull, err := serviceCats.GetCatFullByID(pCat.CatId)
+	tx.Commit()
+
+	catFull, err := serviceCats.GetCatFullByID(pCat.CatId, false, serviceProperties, serviceValuesProperties)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 201
-	pResult.Err = nil
-	pResult.Data = catFull
-	return pResult
+	res.Status = 201
+	res.Err = nil
+	res.Data = catFull
+	return res
 }
-func putCatsCatId(sCatId string, putRequest *request.PutCat, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string) *result {
+func putCatsCatId(sCatId string, putRequest *request.PutCat, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string, mIsCanAsFilter map[string]string) response.Result {
 	serviceCats := service.NewCatService()
-	pResult := new(result)
+	serviceProperties := service.NewPropertyService()
+	serviceValuesProperties := service.NewValuesPropertyService()
+	res := response.Result{}
 
 	catId, err := strconv.ParseUint(sCatId, 10, 64)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
 	pCat, err := serviceCats.GetCatByID(catId)
 	if gorm.IsRecordNotFoundError(err) {
-		pResult.Status = 404
-		pResult.Err = err
-		return pResult
+		res.Status = 404
+		res.Err = err
+		return res
 
 	} else if err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+		res.Status = 400
+		res.Err = err
+		return res
 	}
+
+	tx := server.Db.Debug().Begin()
 
 	pCat.Name = strings.TrimSpace(putRequest.Name)
 	pCat.ParentId = putRequest.ParentId
 	pCat.Pos = putRequest.Pos
 	pCat.IsDisabled = putRequest.IsDisabled
 
-	if err = serviceCats.Update(pCat); err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+	if err = serviceCats.Update(pCat, tx); err != nil {
+		tx.Rollback()
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
-	if _, err := serviceCats.ReWriteCatsProperties(pCat.CatId, mPropertyId, mPos, mIsRequire); err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+	if _, err := serviceCats.ReWriteCatsProperties(pCat.CatId, tx, mPropertyId, mPos, mIsRequire, mIsCanAsFilter); err != nil {
+		tx.Rollback()
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	catFull, err := serviceCats.GetCatFullByID(pCat.CatId)
+	tx.Commit()
+
+	catFull, err := serviceCats.GetCatFullByID(pCat.CatId, false, serviceProperties, serviceValuesProperties)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = catFull
-	return pResult
+	res.Status = 200
+	res.Err = nil
+	res.Data = catFull
+	return res
 }
-func deleteCatsCatId(sCatId string) *result {
+func deleteCatsCatId(sCatId string) response.Result {
 	serviceCats := service.NewCatService()
-	pResult := new(result)
+	res := response.Result{}
 
 	catId, err := strconv.ParseUint(sCatId, 10, 64)
 	if err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
-	if err := serviceCats.Delete(catId); err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+	if err := serviceCats.Delete(catId, nil); err != nil {
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 204
-	pResult.Err = nil
-	pResult.Data = nil
-	return pResult
+	res.Status = 204
+	res.Err = nil
+	res.Data = nil
+	return res
 }

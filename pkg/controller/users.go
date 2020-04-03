@@ -2,6 +2,7 @@ package controller
 
 import (
 	"altair/api/request"
+	"altair/api/response"
 	"altair/pkg/helpers"
 	"altair/pkg/logger"
 	"altair/pkg/service"
@@ -22,22 +23,22 @@ var (
 )
 
 func GetUsers(c *gin.Context) {
-	pResult := getUsers()
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	res := getUsers()
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func GetUsersUserId(c *gin.Context) {
-	pResult := getUsersUserId(c.Param("userId"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	res := getUsersUserId(c.Param("userId"))
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func PostUsers(c *gin.Context) {
 	pPostRequest := new(request.PostUser)
@@ -48,13 +49,13 @@ func PostUsers(c *gin.Context) {
 		return
 	}
 
-	pResult := postUsers(pPostRequest)
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	res := postUsers(pPostRequest)
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func PutUsersUserId(c *gin.Context) {
 	pPutRequest := new(request.PutUser)
@@ -72,106 +73,106 @@ func PutUsersUserId(c *gin.Context) {
 		return
 	}
 
-	pResult := putUsersUserId(c.Param("userId"), pPutRequest, form, c.SaveUploadedFile)
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	res := putUsersUserId(c.Param("userId"), pPutRequest, form, c.SaveUploadedFile)
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func getUsers() *result {
+func getUsers() response.Result {
 	serviceUsers := service.NewUserService()
-	pResult := new(result)
-	users, err := serviceUsers.GetUsers()
+	res := response.Result{}
 
+	users, err := serviceUsers.GetUsers()
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = users
-	return pResult
+	res.Status = 200
+	res.Err = nil
+	res.Data = users
+	return res
 }
-func getUsersUserId(sUserId string) *result {
+func getUsersUserId(sUserId string) response.Result {
 	serviceUsers := service.NewUserService()
-	pResult := new(result)
+	res := response.Result{}
 
 	userId, err := strconv.ParseUint(sUserId, 10, 64)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
 	user, err := serviceUsers.GetUserByID(userId)
 	if gorm.IsRecordNotFoundError(err) {
-		pResult.Status = 404
-		pResult.Err = err
-		return pResult
+		res.Status = 404
+		res.Err = err
+		return res
 
 	} else if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = user
-	return pResult
+	res.Status = 200
+	res.Err = nil
+	res.Data = user
+	return res
 }
-func postUsers(pPostRequest *request.PostUser) *result {
+func postUsers(pPostRequest *request.PostUser) response.Result {
 	serviceUsers := service.NewUserService()
-	pResult := new(result)
+	res := response.Result{}
 
 	if pPostRequest.Password != pPostRequest.PasswordConfirm {
-		pResult.Status = 400
-		pResult.Err = errPasswordsAreNotEqual
-		return pResult
+		res.Status = 400
+		res.Err = errPasswordsAreNotEqual
+		return res
 	}
 
 	user := new(storage.User)
 	user.Email = pPostRequest.Email
 	user.Password = pPostRequest.Password
 
-	if err := serviceUsers.Create(user); err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+	if err := serviceUsers.Create(user, nil); err != nil {
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 201
-	pResult.Err = nil
-	pResult.Data = user
-	return pResult
+	res.Status = 201
+	res.Err = nil
+	res.Data = user
+	return res
 }
-func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error) *result {
+func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error) response.Result {
 	serviceUsers := service.NewUserService()
-	pResult := new(result)
+	res := response.Result{}
 
 	userId, err := strconv.ParseUint(sUserId, 10, 64)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
 	pUser, err := serviceUsers.GetUserByID(userId)
 	if gorm.IsRecordNotFoundError(err) {
-		pResult.Status = 404
-		pResult.Err = err
-		return pResult
+		res.Status = 404
+		res.Err = err
+		return res
 
 	} else if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
 	passwordOld := strings.TrimSpace(pPutRequest.PasswordOld)
@@ -186,14 +187,14 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 
 	if utf8.RuneCountInString(passwordOld) > 0 && utf8.RuneCountInString(password) > 0 && utf8.RuneCountInString(passwordConfirm) > 0 {
 		if password != passwordConfirm {
-			pResult.Status = 400
-			pResult.Err = errPasswordsAreNotEqual
-			return pResult
+			res.Status = 400
+			res.Err = errPasswordsAreNotEqual
+			return res
 		}
 		if !helpers.ComparePasswords(pUser.Password, passwordOld) {
-			pResult.Status = 400
-			pResult.Err = errPasswordsAreNotEqualCurrentAndOld
-			return pResult
+			res.Status = 400
+			res.Err = errPasswordsAreNotEqualCurrentAndOld
+			return res
 		}
 		pUser.Password = helpers.HashAndSalt(password)
 	}
@@ -225,14 +226,14 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 		}
 	}
 
-	if err = serviceUsers.Update(pUser); err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+	if err = serviceUsers.Update(pUser, nil); err != nil {
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = pUser
-	return pResult
+	res.Status = 200
+	res.Err = nil
+	res.Data = pUser
+	return res
 }

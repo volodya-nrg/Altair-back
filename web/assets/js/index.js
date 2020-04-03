@@ -19,7 +19,9 @@ $(function () {
         addValueForProperty($(this));
     });
     $(document).on('click', '.target_for_values_properties .dynamic__del', delValueForProperty);
-    $(document).on('change', '.form[action="/api/v1/ads"][method="post"] .target_for_cats_tree > select, .form-put-put-ads .target_for_cats_tree > select', function (e) {
+    $(document).on('change', '.form[action="/api/v1/ads"][method="post"] .target_for_cats_tree > select, ' +
+        '.form-put-put-ads .target_for_cats_tree > select, ' +
+        '.form[action="/api/v1/search/ads"][method="get"] .target_for_cats_tree > select', function (e) {
         changeSelectOnCatsTree($(e.target));
     });
 
@@ -124,18 +126,22 @@ function appendPhotos($form, name, aImages) {
 }
 
 function insertCatsTreeAsTagSelect(selectorTarget) {
-    var $targetts = $(selectorTarget);
+    var $targets = $(selectorTarget);
     var $select = $('<select></select>');
 
     walkForCatsTree(ALTAIR.catsTree.childes, $select);
 
-    $targetts.each(function () {
+    $targets.each(function () {
         var $self = $(this);
         var name = $self.data("name");
         var $selectCopy = $select.clone();
+        var withPropsOnlyFiltered = $self.data('with_props_only_filtered') || false;
+        var withoutRequired = $self.data('without_required') || false;
 
+        $selectCopy.data('with_props_only_filtered', withPropsOnlyFiltered);
+        $selectCopy.data('without_required', withoutRequired);
         $selectCopy.attr("name", name);
-        $selectCopy.prepend('<option value=""></option>');
+        $selectCopy.prepend('<option value="0"></option>'); // 0 нужен для бека
         $selectCopy.val(0);
 
         $self.append($selectCopy);
@@ -352,9 +358,8 @@ function formPutPutProperties(data, $form) {
     $form.find('input[name="propertyId"]').val(data.propertyId);
     $form.find('input[name="title"]').val(data.title);
     $form.find('input[name="name"]').val(data.name);
-    $form.find('input[name="maxInt"]').val(data.maxInt);
     $form.find('select[name="kindPropertyId"]').val(data.kindPropertyId);
-    $form.find('input[name="isCanAsFilter"]').prop("checked", data.isCanAsFilter);
+    //$form.find('input[name="isCanAsFilter"]').prop("checked", data.isCanAsFilter);
 
     if (data.values && data.values.length) {
         for (var i = 0; i < data.values.length; i++) {
@@ -384,6 +389,7 @@ function addProperty($ctx, properties) {
     var propertyId = properties && properties.propertyId || propertyIdSrc;
     var pos = properties && properties.propertyPos || index;
     var propertyIsRequire = properties && properties.propertyIsRequire || false;
+    var propertyIsCanAsFilter = properties && properties.propertyIsCanAsFilter || false;
 
     if (!propertyId) {
         alert('Ошибка: не выбрано значение!');
@@ -399,6 +405,9 @@ function addProperty($ctx, properties) {
         '       <input class="dynamic__input_mid" type="number" name="pos[' + index + ']" value="' + pos + '"/>',
         '       <label class="dynamic__input_lg">',
         '           <input type="checkbox" name="isRequire[' + index + ']" value="true"' + (propertyIsRequire ? ' checked="checked"' : "") + '/> обяз.',
+        '       </label>',
+        '       <label class="dynamic__input_lg">',
+        '           <input type="checkbox" name="isCanAsFilter[' + index + ']" value="true"' + (propertyIsCanAsFilter ? ' checked="checked"' : "") + '/> как фильтр',
         '       </label>',
         '       <div class="dynamic__input_short"><span class="icon dynamic__del">-</span></div>',
         '   </div>',
@@ -458,17 +467,24 @@ function delValueForProperty(e) {
 function changeSelectOnCatsTree($select, cb) {
     var catId = $select.val();
     var $wrapper = $('<div class="cat_properties"></div>');
+    var withPropsOnlyFiltered = $select.data('with_props_only_filtered');
+    var isWithoutRequired = $select.data('without_required');
+    var url = '/api/v1/cats/' + catId;
+
+    if (withPropsOnlyFiltered) {
+        url += "?withPropsOnlyFiltered=true";
+    }
 
     $.ajax({
         method: 'get',
-        url: '/api/v1/cats/' + catId,
+        url: url,
         dataType: 'json',
         beforeSend: function (xhr) {
             $select.attr("disabled", true);
             $select.parent().children(".cat_properties").remove();
         }
     }).done(function (response) {
-        var htmlCatProperties = buildHTMLCatProperties(response);
+        var htmlCatProperties = buildHTMLCatProperties(response, isWithoutRequired);
 
         if (htmlCatProperties) {
             $wrapper.append($(htmlCatProperties));
@@ -487,14 +503,14 @@ function changeSelectOnCatsTree($select, cb) {
     });
 }
 
-function buildHTMLCatProperties(oCatData) {
+function buildHTMLCatProperties(oCatData, isWithoutRequired) {
     var reciever = [];
 
     for (var i = 0; i < oCatData.properties.length; i++) {
         var property = oCatData.properties[i];
         var symbolRequire = property.propertyIsRequire ? ' *' : '';
         var title = property.title;
-        var tag = getHTMLTagCatProperty(property);
+        var tag = getHTMLTagCatProperty(property, isWithoutRequired);
         var row = [
             '<div class="form__row">',
             '   <div class="form__title">' + title + symbolRequire + '</div>',
@@ -508,8 +524,8 @@ function buildHTMLCatProperties(oCatData) {
     return reciever.join('');
 }
 
-function getHTMLTagCatProperty(property) {
-    var propRequire = property.propertyIsRequire ? 'required="required"' : "";
+function getHTMLTagCatProperty(property, isWithoutRequired) {
+    var propRequire = property.propertyIsRequire && !isWithoutRequired ? 'required="required"' : "";
     var kind = property.kindPropertyName;
     var name = property.name;
     var pos = property.propertyPos;

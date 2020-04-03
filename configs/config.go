@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-var Cfg *Config
+var Cfg Config
 
 type Config struct {
 	AppMode   string
@@ -21,13 +21,9 @@ func Load(configPath string) error {
 	}
 
 	file, _ := os.Open(configPath)
-	defer func() {
-		_ = file.Close()
-	}()
+	defer file.Close()
 
-	Cfg = new(Config)
-
-	if err := json.NewDecoder(file).Decode(Cfg); err != nil {
+	if err := json.NewDecoder(file).Decode(&Cfg); err != nil {
 		cwd, _ := os.Getwd()
 		sErr := fmt.Errorf(
 			"cannot load config from file: %s, cwd: %s, config path: %s",

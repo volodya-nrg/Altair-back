@@ -3,8 +3,10 @@ package service
 import (
 	"altair/api/response"
 	"altair/pkg/helpers"
+	"altair/pkg/logger"
 	"altair/server"
 	"altair/storage"
+	"github.com/jinzhu/gorm"
 	"reflect"
 	"strconv"
 	"sync"
@@ -18,12 +20,11 @@ type CatService struct{}
 
 func (cs CatService) GetCats() ([]*storage.Cat, error) {
 	cats := make([]*storage.Cat, 0)
-	err := server.Db.Debug().Order("cat_id", false).Find(&cats).Error
+	err := server.Db.Debug().Order("cat_id asc").Find(&cats).Error
 
 	return cats, err
 }
-func (cs CatService) GetCatsFull() ([]*response.СatFull, error) {
-	serviceProperties := NewPropertyService()
+func (cs CatService) GetCatsFull(serviceProperties *PropertyService, valuesPropertyService *ValuesPropertyService) ([]*response.СatFull, error) {
 	catsFull := make([]*response.СatFull, 0)
 	linkCatsProperties := make([]*storage.CatProperty, 0)
 	catIds := make([]uint64, 0)
@@ -40,7 +41,7 @@ func (cs CatService) GetCatsFull() ([]*response.СatFull, error) {
 		catIds = append(catIds, cat.CatId)
 	}
 
-	propertiesFull, err := serviceProperties.GetPropertiesFullByCatIds(catIds)
+	propertiesFull, err := serviceProperties.GetPropertiesFullByCatIds(catIds, valuesPropertyService)
 	if err != nil {
 		return catsFull, err
 	}
@@ -50,7 +51,7 @@ func (cs CatService) GetCatsFull() ([]*response.СatFull, error) {
 		return catsFull, err
 	}
 
-	// имеем пулные каталоги, полные св-ва со значениями и их связи
+	// имеем полные каталоги, полные св-ва со значениями и их связи
 	for _, catFull := range catsFull {
 		for _, link := range linkCatsProperties {
 			for _, prop := range propertiesFull {
@@ -63,11 +64,11 @@ func (cs CatService) GetCatsFull() ([]*response.СatFull, error) {
 
 	return catsFull, nil
 }
-func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.CatFullTree {
-	treeFull := new(response.CatFullTree)
+func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.CatTreeFull {
+	treeFull := new(response.CatTreeFull)
 
 	for _, catFull := range catsFull {
-		tmp := new(response.CatFullTree)
+		tmp := new(response.CatTreeFull)
 		tmp.СatFull = catFull
 
 		if catFull.CatId > 0 {
@@ -75,7 +76,7 @@ func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.
 				treeFull.Childes = append(treeFull.Childes, tmp)
 
 			} else if catFull.ParentId > 0 {
-				cs.createTreeFullWalk(treeFull, *tmp)
+				cs.buildTreeFullWalk(treeFull, *tmp)
 			}
 		}
 	}
@@ -94,7 +95,7 @@ func (cs CatService) GetCatsAsTree(cats []*storage.Cat) *response.CatTree {
 				tree.Childes = append(tree.Childes, tmp)
 
 			} else if cat.ParentId > 0 {
-				cs.createTreeWalk(tree, *tmp)
+				cs.buildTreeWalk(tree, *tmp)
 			}
 		}
 	}
@@ -107,8 +108,7 @@ func (cs CatService) GetCatByID(catId uint64) (*storage.Cat, error) {
 
 	return pCat, err
 }
-func (cs CatService) GetCatFullByID(catId uint64) (*response.СatFull, error) {
-	serviceProperties := NewPropertyService()
+func (cs CatService) GetCatFullByID(catId uint64, withPropsOnlyFiltered bool, serviceProperties *PropertyService, valuesPropertyService *ValuesPropertyService) (*response.СatFull, error) {
 	pCatFull := new(response.СatFull)
 
 	pCat, err := cs.GetCatByID(catId)
@@ -116,7 +116,7 @@ func (cs CatService) GetCatFullByID(catId uint64) (*response.СatFull, error) {
 		return pCatFull, err
 	}
 
-	listPPropertiesFull, err := serviceProperties.GetPropertiesFullByCatId(catId)
+	listPPropertiesFull, err := serviceProperties.GetPropertiesFullByCatId(catId, withPropsOnlyFiltered, valuesPropertyService)
 	if err != nil {
 		return pCatFull, err
 	}
@@ -126,39 +126,65 @@ func (cs CatService) GetCatFullByID(catId uint64) (*response.СatFull, error) {
 
 	return pCatFull, nil
 }
-func (cs CatService) Create(cat *storage.Cat) error {
+func (cs CatService) Create(cat *storage.Cat, tx *gorm.DB) error {
 	cat.Slug = helpers.TranslitRuToEn(cat.Name)
 
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
 	if !server.Db.Debug().NewRecord(cat) {
 		return errNotCreateNewCat
 	}
 
-	return server.Db.Debug().Create(cat).Error
+	err := tx.Create(cat).Error
+
+	return err
 }
-func (cs CatService) Update(cat *storage.Cat) error {
+func (cs CatService) Update(cat *storage.Cat, tx *gorm.DB) error {
 	cat.Slug = helpers.TranslitRuToEn(cat.Name)
 
-	return server.Db.Debug().Save(cat).Error
-}
-func (cs CatService) Delete(catId uint64) error {
-	cat := storage.Cat{
-		CatId: catId,
+	if tx == nil {
+		tx = server.Db.Debug()
 	}
 
-	if err := server.Db.Debug().Delete(&cat).Error; err != nil {
+	err := tx.Save(cat).Error
+
+	return err
+}
+func (cs CatService) Delete(catId uint64, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+	if err := tx.Where("cat_id = ?", catId).Delete(storage.Cat{}).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
-	if err := cs.deleteFromCatsPropertiesByCatId(catId); err != nil {
+	if err := cs.deleteFromCatsPropertiesByCatId(catId, tx); err != nil {
+		tx.Rollback()
 		return err
 	}
+
+	tx.Commit()
 
 	return nil
 }
-func (cs CatService) ReWriteCatsProperties(catId uint64, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string) ([]*storage.CatProperty, error) {
-	list := make([]*storage.CatProperty, 0)
-	tbl := server.Db.Debug().Table("cats_properties")
+func (cs CatService) ReWriteCatsProperties(
+	catId uint64,
+	tx *gorm.DB,
+	mPropertyId map[string]string,
+	mPos map[string]string,
+	mIsRequire map[string]string,
+	mIsCanAsFilter map[string]string) ([]*storage.CatProperty, error) {
 
-	if err := cs.deleteFromCatsPropertiesByCatId(catId); err != nil {
+	list := make([]*storage.CatProperty, 0)
+
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	tbl := tx.Table("cats_properties")
+
+	if err := cs.deleteFromCatsPropertiesByCatId(catId, nil); err != nil {
 		return list, err
 	}
 
@@ -179,9 +205,12 @@ func (cs CatService) ReWriteCatsProperties(catId uint64, mPropertyId map[string]
 		}
 
 		if val, found := mIsRequire[k]; found {
-			if val == "true" {
-				catProperty.IsRequire = true
-			}
+			catProperty.IsRequire = val == "true"
+		}
+
+		if val, found := mIsCanAsFilter[k]; found {
+			catProperty.IsCanAsFilter = val == "true"
+			logger.Info.Println(catProperty.IsCanAsFilter)
 		}
 
 		if !tbl.NewRecord(catProperty) {
@@ -327,31 +356,32 @@ func (cs CatService) descendantsGoRutinesWalk(catTree response.CatTree, findCatI
 
 	return result
 }
-func (cs CatService) createTreeWalk(branches *response.CatTree, inputCat response.CatTree) {
+func (cs CatService) buildTreeWalk(branches *response.CatTree, inputCat response.CatTree) {
 	for _, branch := range branches.Childes {
 		if branch.CatId == inputCat.ParentId {
 			branch.Childes = append(branch.Childes, &inputCat)
 
 		} else if len(branch.Childes) > 0 {
-			cs.createTreeWalk(branch, inputCat)
+			cs.buildTreeWalk(branch, inputCat)
 		}
 	}
 }
-func (cs CatService) createTreeFullWalk(branches *response.CatFullTree, inputCat response.CatFullTree) {
+func (cs CatService) buildTreeFullWalk(branches *response.CatTreeFull, inputCat response.CatTreeFull) {
 	for _, branch := range branches.Childes {
 		if branch.CatId == inputCat.ParentId {
 			branch.Childes = append(branch.Childes, &inputCat)
 
 		} else if len(branch.Childes) > 0 {
-			cs.createTreeFullWalk(branch, inputCat)
+			cs.buildTreeFullWalk(branch, inputCat)
 		}
 	}
 }
-func (cs CatService) deleteFromCatsPropertiesByCatId(catId uint64) error {
-	err := server.Db.Debug().
-		Table("cats_properties").
-		Where("cat_id = ?", catId).
-		Delete(storage.CatProperty{}).Error
+func (cs CatService) deleteFromCatsPropertiesByCatId(catId uint64, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	err := tx.Table("cats_properties").Delete(storage.CatProperty{}, "cat_id = ?", catId).Error
 
 	return err
 }

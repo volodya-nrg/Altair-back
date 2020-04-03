@@ -51,6 +51,11 @@
                                 <div class="target_for_cats_tree" data-name="catId"></div>
                             </div>
                             <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="withPropsOnlyFiltered" value="true"/> св-ва как фильтры
+                                </label>
+                            </div>
+                            <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
@@ -413,15 +418,6 @@
                                 <input type="text" name="name"/>
                             </div>
                             <div class="form__row">
-                                <div class="form__title">макс. число</div>
-                                <input type="number" name="maxInt"/>
-                            </div>
-                            <div class="form__row">
-                                <label>
-                                    <input type="checkbox" name="isCanAsFilter" value="true"/> is_can_as_filter
-                                </label>
-                            </div>
-                            <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
@@ -456,15 +452,6 @@
                             <div class="form__row">
                                 <div class="form__title">[name=] *</div>
                                 <input type="text" name="name"/>
-                            </div>
-                            <div class="form__row">
-                                <div class="form__title">макс. число</div>
-                                <input type="number" name="maxInt"/>
-                            </div>
-                            <div class="form__row">
-                                <label>
-                                    <input type="checkbox" name="isCanAsFilter" value="true"/> is_can_as_filter
-                                </label>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
@@ -551,6 +538,31 @@
                             <div class="form__row">
                                 <div class="form__title">id</div>
                                 <input type="number" name="kindPropertyId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <h3>поиск</h3>
+            <div>
+                <div class="accordion">
+                    <h3>GET: /api/v1/search/ads</h3>
+                    <div>
+                        <form class="form" action="/api/v1/search/ads" method="get">
+                            <div class="form__row">
+                                <div class="form__title">поисковая фраза</div>
+                                <input type="text" name="q" required="required"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">catId</div>
+                                <div class="target_for_cats_tree"
+                                     data-name="catId"
+                                     data-with_props_only_filtered="true"
+                                     data-without_required="true"></div>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>

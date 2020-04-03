@@ -2,8 +2,10 @@ package controller
 
 import (
 	"altair/api/request"
+	"altair/api/response"
 	"altair/pkg/logger"
 	"altair/pkg/service"
+	"altair/server"
 	"altair/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
@@ -12,22 +14,22 @@ import (
 )
 
 func GetProperties(c *gin.Context) {
-	pResult := getProperties()
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	res := getProperties()
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func GetPropertiesPropertyId(c *gin.Context) {
-	pResult := getPropertiesPropertyId(c.Param("propertyId"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	res := getPropertiesPropertyId(c.Param("propertyId"))
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func PostProperties(c *gin.Context) {
 	pPostRequest := new(request.PostProperty)
@@ -38,13 +40,17 @@ func PostProperties(c *gin.Context) {
 		return
 	}
 
-	pResult := postProperties(pPostRequest, c.PostFormMap("valueId"), c.PostFormMap("valueTitle"), c.PostFormMap("valuePos"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	mValueId := c.PostFormMap("valueId")
+	mValueTitle := c.PostFormMap("valueTitle")
+	mValuePos := c.PostFormMap("valuePos")
+
+	res := postProperties(pPostRequest, mValueId, mValueTitle, mValuePos)
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func PutPropertiesPropertyId(c *gin.Context) {
 	pPutRequest := new(request.PutProperty)
@@ -55,183 +61,193 @@ func PutPropertiesPropertyId(c *gin.Context) {
 		return
 	}
 
-	pResult := putPropertiesPropertyId(
-		c.Param("propertyId"),
-		pPutRequest,
-		c.PostFormMap("valueId"),
-		c.PostFormMap("valueTitle"),
-		c.PostFormMap("valuePos"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	propertyId := c.Param("propertyId")
+	mValueId := c.PostFormMap("valueId")
+	mValueTitle := c.PostFormMap("valueTitle")
+	mValuePos := c.PostFormMap("valuePos")
+
+	res := putPropertiesPropertyId(propertyId, pPutRequest, mValueId, mValueTitle, mValuePos)
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 func DeletePropertiesPropertyId(c *gin.Context) {
-	pResult := deletePropertiesPropertyId(c.Param("propertyId"))
-	if pResult.Err != nil {
-		logger.Warning.Println(pResult.Err.Error())
-		pResult.Data = pResult.Err.Error()
+	res := deletePropertiesPropertyId(c.Param("propertyId"))
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
-	c.JSON(pResult.Status, pResult.Data)
+	c.JSON(res.Status, res.Data)
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func getProperties() *result {
+func getProperties() response.Result {
 	serviceProperties := service.NewPropertyService()
-	pResult := new(result)
+	res := response.Result{}
 
-	propertiesFull, err := serviceProperties.GetPropertiesFull()
+	propertiesWithKindName, err := serviceProperties.GetPropertiesWithKindName()
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = propertiesFull
-	return pResult
+	res.Status = 200
+	res.Err = nil
+	res.Data = propertiesWithKindName
+	return res
 }
-func getPropertiesPropertyId(sPropertyId string) *result {
+func getPropertiesPropertyId(sPropertyId string) response.Result {
 	serviceProperties := service.NewPropertyService()
-	pResult := new(result)
+	serviceValuesProperties := service.NewValuesPropertyService()
+	res := response.Result{}
 
 	propertyId, err := strconv.ParseUint(sPropertyId, 10, 64)
 	if err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
-	propertyFull, err := serviceProperties.GetPropertyFullById(propertyId)
+	propertyFull, err := serviceProperties.GetPropertyFullById(propertyId, serviceValuesProperties)
 	if gorm.IsRecordNotFoundError(err) {
-		pResult.Status = 404
-		pResult.Err = err
-		return pResult
+		res.Status = 404
+		res.Err = err
+		return res
 
 	} else if err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = propertyFull
-	return pResult
+	res.Status = 200
+	res.Err = nil
+	res.Data = propertyFull
+	return res
 }
-func postProperties(pPostRequest *request.PostProperty, mId map[string]string, mTitle map[string]string, mPos map[string]string) *result {
+func postProperties(pPostRequest *request.PostProperty, mId map[string]string, mTitle map[string]string, mPos map[string]string) response.Result {
 	serviceProperties := service.NewPropertyService()
-	pResult := new(result)
+	serviceValuesProperties := service.NewValuesPropertyService()
+	res := response.Result{}
 	pProperty := new(storage.Property)
+	tx := server.Db.Debug().Begin()
 
 	pProperty.Title = strings.TrimSpace(pPostRequest.Title)
 	pProperty.KindPropertyId = pPostRequest.KindPropertyId
 	pProperty.Name = strings.TrimSpace(pPostRequest.Name)
-	pProperty.IsCanAsFilter = pPostRequest.IsCanAsFilter
-	pProperty.MaxInt = pPostRequest.MaxInt
 
-	if err := serviceProperties.Create(pProperty); err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+	if err := serviceProperties.Create(pProperty, tx); err != nil {
+		tx.Rollback()
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
-	_, err := serviceProperties.ReWriteValuesForProperties(pProperty.PropertyId, mId, mTitle, mPos)
+	_, err := serviceProperties.ReWriteValuesForProperties(pProperty.PropertyId, tx, mId, mTitle, mPos)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		tx.Rollback()
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	propertyFull, err := serviceProperties.GetPropertyFullById(pProperty.PropertyId)
+	tx.Commit()
+
+	propertyFull, err := serviceProperties.GetPropertyFullById(pProperty.PropertyId, serviceValuesProperties)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 201
-	pResult.Err = nil
-	pResult.Data = propertyFull
-	return pResult
+	res.Status = 201
+	res.Err = nil
+	res.Data = propertyFull
+	return res
 }
-func putPropertiesPropertyId(sPropertyId string, putRequest *request.PutProperty, mId map[string]string, mTitle map[string]string, mPos map[string]string) *result {
+func putPropertiesPropertyId(sPropertyId string, putRequest *request.PutProperty, mId map[string]string, mTitle map[string]string, mPos map[string]string) response.Result {
 	serviceProperties := service.NewPropertyService()
-	pResult := new(result)
+	serviceValuesProperties := service.NewValuesPropertyService()
+	res := response.Result{}
 
 	propertyId, err := strconv.ParseUint(sPropertyId, 10, 64)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
 	pProperty, err := serviceProperties.GetPropertyById(propertyId)
 	if gorm.IsRecordNotFoundError(err) {
-		pResult.Status = 404
-		pResult.Err = err
-		return pResult
+		res.Status = 404
+		res.Err = err
+		return res
 
 	} else if err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+		res.Status = 400
+		res.Err = err
+		return res
 	}
+
+	tx := server.Db.Debug().Begin()
 
 	pProperty.Title = strings.TrimSpace(putRequest.Title)
 	pProperty.Name = strings.TrimSpace(putRequest.Name)
 	pProperty.KindPropertyId = putRequest.KindPropertyId
-	pProperty.MaxInt = putRequest.MaxInt
-	pProperty.IsCanAsFilter = putRequest.IsCanAsFilter
 
-	if err = serviceProperties.Update(pProperty); err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+	if err = serviceProperties.Update(pProperty, tx); err != nil {
+		tx.Rollback()
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
-	_, err = serviceProperties.ReWriteValuesForProperties(pProperty.PropertyId, mId, mTitle, mPos)
+	_, err = serviceProperties.ReWriteValuesForProperties(pProperty.PropertyId, tx, mId, mTitle, mPos)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		tx.Rollback()
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	propertyFull, err := serviceProperties.GetPropertyFullById(pProperty.PropertyId)
+	tx.Commit()
+
+	propertyFull, err := serviceProperties.GetPropertyFullById(pProperty.PropertyId, serviceValuesProperties)
 	if err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 200
-	pResult.Err = nil
-	pResult.Data = propertyFull
-	return pResult
+	res.Status = 200
+	res.Err = nil
+	res.Data = propertyFull
+	return res
 }
-func deletePropertiesPropertyId(sPropertyId string) *result {
+func deletePropertiesPropertyId(sPropertyId string) response.Result {
 	serviceProperties := service.NewPropertyService()
-	pResult := new(result)
+	res := response.Result{}
 
 	propertyId, err := strconv.ParseUint(sPropertyId, 10, 64)
 	if err != nil {
-		pResult.Status = 400
-		pResult.Err = err
-		return pResult
+		res.Status = 400
+		res.Err = err
+		return res
 	}
 
-	if err := serviceProperties.Delete(propertyId); err != nil {
-		pResult.Status = 500
-		pResult.Err = err
-		return pResult
+	if err := serviceProperties.Delete(propertyId, nil); err != nil {
+		res.Status = 500
+		res.Err = err
+		return res
 	}
 
-	pResult.Status = 204
-	pResult.Err = nil
-	pResult.Data = nil
-	return pResult
+	res.Status = 204
+	res.Err = nil
+	res.Data = nil
+	return res
 }

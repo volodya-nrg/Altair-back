@@ -25,14 +25,14 @@ func init() {
 		logger.Error.Fatalln(err.Error())
 	}
 
-	pDbConf := configs.Cfg.DB
-	if err := server.InitDB(pDbConf.User, pDbConf.Password, pDbConf.Host, pDbConf.Port, pDbConf.Name); err != nil {
+	confDB := configs.Cfg.DB
+	if err := server.InitDB(confDB.User, confDB.Password, confDB.Host, confDB.Port, confDB.Name); err != nil {
 		logger.Error.Fatalln(err.Error())
 	}
 }
 func main() {
-	r := setupRouter()
-	if err := r.Run("127.0.0.1:8080"); err != nil {
+	route := setupRouter()
+	if err := route.Run("127.0.0.1:8080"); err != nil {
 		logger.Error.Fatalln(err.Error())
 	}
 }
@@ -42,16 +42,16 @@ func setupRouter() *gin.Engine {
 	configCors.AllowCredentials = true
 	configCors.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 
-	pEngine := gin.Default()
-	pEngine.MaxMultipartMemory = 16 << 20 // 16 MiB. Lower memory limit for multipart forms (default is 32 MiB)
+	route := gin.Default()
+	route.MaxMultipartMemory = 16 << 20 // 16 MiB. Lower memory limit for multipart forms (default is 32 MiB)
 
-	pEngine.LoadHTMLGlob("./web/templates/*")
-	pEngine.StaticFile("/favicon.ico", "./web/assets/img/favicon.ico")
-	pEngine.Static("/assets", "./web/assets")
-	pEngine.Use(static.Serve("/images", static.LocalFile("./web/images", true)))
-	pEngine.Use(cors.New(configCors))
+	route.LoadHTMLGlob("./web/templates/*")
+	route.StaticFile("/favicon.ico", "./web/assets/img/favicon.ico")
+	route.Static("/assets", "./web/assets")
+	route.Use(static.Serve("/images", static.LocalFile("./web/images", true)))
+	route.Use(cors.New(configCors))
 
-	pEngine.GET("/", func(c *gin.Context) {
+	route.GET("/", func(c *gin.Context) {
 		serviceCats := service.NewCatService()
 		serviceKindProperties := service.NewKindPropertyService()
 		serviceProperties := service.NewPropertyService()
@@ -86,7 +86,7 @@ func setupRouter() *gin.Engine {
 		})
 	})
 
-	v1 := pEngine.Group("/api/v1")
+	v1 := route.Group("/api/v1")
 
 	v1.GET("/cats", controller.GetCats)
 	v1.GET("/cats/:catId", controller.GetCatsCatId)
@@ -117,11 +117,12 @@ func setupRouter() *gin.Engine {
 	v1.PUT("/kind_properties/:kindPropertyId", controller.PutKindPropertiesKindPropertyId)
 	v1.DELETE("/kind_properties/:kindPropertyId", controller.DeleteKindPropertiesKindPropertyId)
 
+	v1.GET("/search/ads", controller.GetSearchAds)
 	v1.GET("/test", controller.GetTest)
 
-	pEngine.NoRoute(func(c *gin.Context) {
+	route.NoRoute(func(c *gin.Context) {
 		c.String(404, "404 page not found")
 	})
 
-	return pEngine
+	return route
 }
