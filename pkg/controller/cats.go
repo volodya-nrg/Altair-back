@@ -15,22 +15,12 @@ import (
 
 func GetCats(c *gin.Context) {
 	asTree := c.DefaultQuery("asTree", "false")
-	isFillPropertiesFull := c.DefaultQuery("isFillPropertiesFull", "false")
 	res := response.Result{}
 
-	if isFillPropertiesFull == "true" {
-		res = getCatsFull(asTree == "true")
-		if res.Err != nil {
-			logger.Warning.Println(res.Err.Error())
-			res.Data = res.Err.Error()
-		}
-
-	} else {
-		res = getCats(asTree == "true")
-		if res.Err != nil {
-			logger.Warning.Println(res.Err.Error())
-			res.Data = res.Err.Error()
-		}
+	res = getCats(asTree == "true")
+	if res.Err != nil {
+		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
 	}
 
 	c.JSON(res.Status, res.Data)
@@ -59,8 +49,9 @@ func PostCats(c *gin.Context) {
 	mPos := c.PostFormMap("pos")
 	mIsRequire := c.PostFormMap("isRequire")
 	mIsCanAsFilter := c.PostFormMap("isCanAsFilter")
+	mComment := c.PostFormMap("comment")
 
-	res := postCats(pPostRequest, mPropertyId, mPos, mIsRequire, mIsCanAsFilter)
+	res := postCats(pPostRequest, mPropertyId, mPos, mIsRequire, mIsCanAsFilter, mComment)
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -81,8 +72,9 @@ func PutCatsCatId(c *gin.Context) {
 	mPos := c.PostFormMap("pos")
 	mIsRequire := c.PostFormMap("isRequire")
 	mIsCanAsFilter := c.PostFormMap("isCanAsFilter")
+	mComment := c.PostFormMap("comment")
 
-	res := putCatsCatId(c.Param("catId"), pPutRequest, mPropertyId, mPos, mIsRequire, mIsCanAsFilter)
+	res := putCatsCatId(c.Param("catId"), pPutRequest, mPropertyId, mPos, mIsRequire, mIsCanAsFilter, mComment)
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -122,29 +114,6 @@ func getCats(isAsTree bool) response.Result {
 
 	return res
 }
-func getCatsFull(isAsTree bool) response.Result {
-	serviceCats := service.NewCatService()
-	serviceProperties := service.NewPropertyService()
-	serviceValuesProperties := service.NewValuesPropertyService()
-	res := response.Result{}
-
-	cats, err := serviceCats.GetCatsFull(serviceProperties, serviceValuesProperties)
-	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
-	}
-
-	res.Status = 200
-	res.Err = nil
-	res.Data = cats
-
-	if isAsTree {
-		res.Data = serviceCats.GetCatsFullAsTree(cats)
-	}
-
-	return res
-}
 func getCatsCatId(sCatId string, withPropsOnlyFiltered bool) response.Result {
 	serviceCats := service.NewCatService()
 	serviceProperties := service.NewPropertyService()
@@ -175,7 +144,7 @@ func getCatsCatId(sCatId string, withPropsOnlyFiltered bool) response.Result {
 	res.Data = catFull
 	return res
 }
-func postCats(postRequest *request.PostCat, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string, mIsCanAsFilter map[string]string) response.Result {
+func postCats(postRequest *request.PostCat, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string, mIsCanAsFilter map[string]string, mComment map[string]string) response.Result {
 	serviceCats := service.NewCatService()
 	serviceProperties := service.NewPropertyService()
 	serviceValuesProperties := service.NewValuesPropertyService()
@@ -183,9 +152,18 @@ func postCats(postRequest *request.PostCat, mPropertyId map[string]string, mPos 
 	pCat := new(storage.Cat)
 	tx := server.Db.Debug().Begin()
 
-	pCat.Name = postRequest.Name
+	pCat.Name = strings.TrimSpace(postRequest.Name)
 	pCat.ParentId = postRequest.ParentId
 	pCat.Pos = postRequest.Pos
+	pCat.PriceAlias = strings.TrimSpace(postRequest.PriceAlias)
+	pCat.PriceSuffix = strings.TrimSpace(postRequest.PriceSuffix)
+	pCat.TitleHelp = strings.TrimSpace(postRequest.TitleHelp)
+	pCat.TitleComment = strings.TrimSpace(postRequest.TitleComment)
+	pCat.IsAutogenerateTitle = postRequest.IsAutogenerateTitle
+
+	if pCat.Pos < 1 {
+		pCat.Pos = 1
+	}
 
 	if err := serviceCats.Create(pCat, tx); err != nil {
 		tx.Rollback()
@@ -195,7 +173,7 @@ func postCats(postRequest *request.PostCat, mPropertyId map[string]string, mPos 
 	}
 
 	// обработаем св-ва для категории
-	if _, err := serviceCats.ReWriteCatsProperties(pCat.CatId, tx, mPropertyId, mPos, mIsRequire, mIsCanAsFilter); err != nil {
+	if _, err := serviceCats.ReWriteCatsProperties(pCat.CatId, tx, mPropertyId, mPos, mIsRequire, mIsCanAsFilter, mComment); err != nil {
 		tx.Rollback()
 		res.Status = 500
 		res.Err = err
@@ -216,7 +194,7 @@ func postCats(postRequest *request.PostCat, mPropertyId map[string]string, mPos 
 	res.Data = catFull
 	return res
 }
-func putCatsCatId(sCatId string, putRequest *request.PutCat, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string, mIsCanAsFilter map[string]string) response.Result {
+func putCatsCatId(sCatId string, putRequest *request.PutCat, mPropertyId map[string]string, mPos map[string]string, mIsRequire map[string]string, mIsCanAsFilter map[string]string, mComment map[string]string) response.Result {
 	serviceCats := service.NewCatService()
 	serviceProperties := service.NewPropertyService()
 	serviceValuesProperties := service.NewValuesPropertyService()
@@ -247,6 +225,15 @@ func putCatsCatId(sCatId string, putRequest *request.PutCat, mPropertyId map[str
 	pCat.ParentId = putRequest.ParentId
 	pCat.Pos = putRequest.Pos
 	pCat.IsDisabled = putRequest.IsDisabled
+	pCat.PriceAlias = strings.TrimSpace(putRequest.PriceAlias)
+	pCat.PriceSuffix = strings.TrimSpace(putRequest.PriceSuffix)
+	pCat.TitleHelp = strings.TrimSpace(putRequest.TitleHelp)
+	pCat.TitleComment = strings.TrimSpace(putRequest.TitleComment)
+	pCat.IsAutogenerateTitle = putRequest.IsAutogenerateTitle
+
+	if pCat.Pos < 1 {
+		pCat.Pos = 1
+	}
 
 	if err = serviceCats.Update(pCat, tx); err != nil {
 		tx.Rollback()
@@ -255,7 +242,7 @@ func putCatsCatId(sCatId string, putRequest *request.PutCat, mPropertyId map[str
 		return res
 	}
 
-	if _, err := serviceCats.ReWriteCatsProperties(pCat.CatId, tx, mPropertyId, mPos, mIsRequire, mIsCanAsFilter); err != nil {
+	if _, err := serviceCats.ReWriteCatsProperties(pCat.CatId, tx, mPropertyId, mPos, mIsRequire, mIsCanAsFilter, mComment); err != nil {
 		tx.Rollback()
 		res.Status = 500
 		res.Err = err

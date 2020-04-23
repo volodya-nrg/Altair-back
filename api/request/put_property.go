@@ -6,4 +6,7 @@ type PutProperty struct {
 	KindPropertyId uint64 `form:"kindPropertyId" binding:"required"`
 	Name           string `form:"name" binding:"required"`
 	IsRequire      bool   `form:"isRequire"`
+	Suffix         string `form:"suffix"`
+	Comment        string `form:"comment"`
+	PrivateComment string `form:"privateComment"`
 }

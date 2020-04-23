@@ -6,6 +6,7 @@ import (
 	"altair/pkg/helpers"
 	"altair/pkg/logger"
 	"altair/pkg/service"
+	"altair/server"
 	"altair/storage"
 	"errors"
 	"github.com/gin-gonic/gin"
@@ -41,15 +42,15 @@ func GetUsersUserId(c *gin.Context) {
 	c.JSON(res.Status, res.Data)
 }
 func PostUsers(c *gin.Context) {
-	pPostRequest := new(request.PostUser)
+	postRequest := new(request.PostUser)
 
-	if err := c.ShouldBind(pPostRequest); err != nil {
+	if err := c.ShouldBind(postRequest); err != nil {
 		logger.Warning.Println(err)
 		c.JSON(400, err.Error())
 		return
 	}
 
-	res := postUsers(pPostRequest)
+	res := postUsers(postRequest)
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -58,9 +59,9 @@ func PostUsers(c *gin.Context) {
 	c.JSON(res.Status, res.Data)
 }
 func PutUsersUserId(c *gin.Context) {
-	pPutRequest := new(request.PutUser)
+	putRequest := new(request.PutUser)
 
-	if err := c.ShouldBind(pPutRequest); err != nil {
+	if err := c.ShouldBind(putRequest); err != nil {
 		logger.Warning.Println(err)
 		c.JSON(400, err.Error())
 		return
@@ -73,9 +74,17 @@ func PutUsersUserId(c *gin.Context) {
 		return
 	}
 
-	res := putUsersUserId(c.Param("userId"), pPutRequest, form, c.SaveUploadedFile)
+	res := putUsersUserId(c.Param("userId"), putRequest, form, c.SaveUploadedFile)
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
+		res.Data = res.Err.Error()
+	}
+
+	c.JSON(res.Status, res.Data)
+}
+func DeleteUsersUserId(c *gin.Context) {
+	res := deleteUsersUserId(c.Param("userId"))
+	if res.Err != nil {
 		res.Data = res.Err.Error()
 	}
 
@@ -127,19 +136,19 @@ func getUsersUserId(sUserId string) response.Result {
 	res.Data = user
 	return res
 }
-func postUsers(pPostRequest *request.PostUser) response.Result {
+func postUsers(postRequest *request.PostUser) response.Result {
 	serviceUsers := service.NewUserService()
 	res := response.Result{}
 
-	if pPostRequest.Password != pPostRequest.PasswordConfirm {
+	if postRequest.Password != postRequest.PasswordConfirm {
 		res.Status = 400
 		res.Err = errPasswordsAreNotEqual
 		return res
 	}
 
 	user := new(storage.User)
-	user.Email = pPostRequest.Email
-	user.Password = pPostRequest.Password
+	user.Email = postRequest.Email
+	user.Password = postRequest.Password
 
 	if err := serviceUsers.Create(user, nil); err != nil {
 		res.Status = 500
@@ -152,7 +161,7 @@ func postUsers(pPostRequest *request.PostUser) response.Result {
 	res.Data = user
 	return res
 }
-func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error) response.Result {
+func putUsersUserId(sUserId string, putRequest *request.PutUser, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error) response.Result {
 	serviceUsers := service.NewUserService()
 	res := response.Result{}
 
@@ -163,7 +172,7 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 		return res
 	}
 
-	pUser, err := serviceUsers.GetUserByID(userId)
+	user, err := serviceUsers.GetUserByID(userId)
 	if gorm.IsRecordNotFoundError(err) {
 		res.Status = 404
 		res.Err = err
@@ -175,14 +184,14 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 		return res
 	}
 
-	passwordOld := strings.TrimSpace(pPutRequest.PasswordOld)
-	password := strings.TrimSpace(pPutRequest.Password)
-	passwordConfirm := strings.TrimSpace(pPutRequest.PasswordConfirm)
+	passwordOld := strings.TrimSpace(putRequest.PasswordOld)
+	password := strings.TrimSpace(putRequest.Password)
+	passwordConfirm := strings.TrimSpace(putRequest.PasswordConfirm)
 
-	pUser.Name = strings.TrimSpace(pPutRequest.Name)
+	user.Name = strings.TrimSpace(putRequest.Name)
 
-	if pUser.EmailIsConfirmed != pPutRequest.EmailIsConfirmed {
-		pUser.EmailIsConfirmed = !pUser.EmailIsConfirmed
+	if user.IsEmailConfirmed != putRequest.IsEmailConfirmed {
+		user.IsEmailConfirmed = !user.IsEmailConfirmed
 	}
 
 	if utf8.RuneCountInString(passwordOld) > 0 && utf8.RuneCountInString(password) > 0 && utf8.RuneCountInString(passwordConfirm) > 0 {
@@ -191,12 +200,12 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 			res.Err = errPasswordsAreNotEqual
 			return res
 		}
-		if !helpers.ComparePasswords(pUser.Password, passwordOld) {
+		if !helpers.ComparePasswords(user.Password, passwordOld) {
 			res.Status = 400
 			res.Err = errPasswordsAreNotEqualCurrentAndOld
 			return res
 		}
-		pUser.Password = helpers.HashAndSalt(password)
+		user.Password = helpers.HashAndSalt(password)
 	}
 
 	var filePath string
@@ -209,9 +218,9 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 	}
 
 	// отправили файл или у Юзера есть аватар и пришедший аватар пустой (удалим)
-	if filePath != "" || (pUser.Avatar != "" && pPutRequest.Avatar == "") {
-		if pUser.Avatar != "" {
-			tmp := "./web/images/" + pUser.Avatar
+	if filePath != "" || (user.Avatar != "" && putRequest.Avatar == "") {
+		if user.Avatar != "" {
+			tmp := "./web/images/" + user.Avatar
 
 			if helpers.FileExists(tmp) {
 				if err := os.Remove(tmp); err != nil {
@@ -219,14 +228,14 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 				}
 			}
 
-			pUser.Avatar = ""
+			user.Avatar = ""
 		}
 		if filePath != "" {
-			pUser.Avatar = filePath
+			user.Avatar = filePath
 		}
 	}
 
-	if err = serviceUsers.Update(pUser, nil); err != nil {
+	if err = serviceUsers.Update(user, nil); err != nil {
 		res.Status = 500
 		res.Err = err
 		return res
@@ -234,6 +243,33 @@ func putUsersUserId(sUserId string, pPutRequest *request.PutUser, form *multipar
 
 	res.Status = 200
 	res.Err = nil
-	res.Data = pUser
+	res.Data = user
+	return res
+}
+func deleteUsersUserId(sUserId string) response.Result {
+	serviceUsers := service.NewUserService()
+	res := response.Result{}
+
+	userId, err := strconv.ParseUint(sUserId, 10, 64)
+	if err != nil {
+		logger.Warning.Println(err)
+		res.Status = 500
+		res.Err = err
+		return res
+	}
+
+	tx := server.Db.Debug().Begin()
+	if err := serviceUsers.Delete(userId, tx); err != nil {
+		tx.Rollback()
+		logger.Warning.Println(err)
+		res.Status = 500
+		res.Err = err
+		return res
+	}
+	tx.Commit()
+
+	res.Status = 204
+	res.Err = nil
+	res.Data = nil
 	return res
 }

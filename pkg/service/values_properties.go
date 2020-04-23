@@ -4,6 +4,7 @@ import (
 	"altair/api/response"
 	"altair/server"
 	"altair/storage"
+	"github.com/jinzhu/gorm"
 )
 
 func NewValuesPropertyService() *ValuesPropertyService {
@@ -50,4 +51,13 @@ func (vs ValuesPropertyService) GetValuesByPropertyId(propId uint64) ([]*storage
 		Find(&values).Error
 
 	return values, err
+}
+func (vs ValuesPropertyService) DeleteByPropertyId(propertyId uint64, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	err := tx.Delete(storage.ValueProperty{}, "property_id = ?", propertyId).Error
+
+	return err
 }

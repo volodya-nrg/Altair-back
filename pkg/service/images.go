@@ -5,6 +5,7 @@ import (
 	"altair/server"
 	"altair/storage"
 	"fmt"
+	"github.com/jinzhu/gorm"
 	"os"
 )
 
@@ -32,41 +33,39 @@ func (is ImageService) GetImageById(imgId uint64) (*storage.Image, error) {
 
 	return img, err
 }
-func (is ImageService) Create(image *storage.Image) error {
-	if !server.Db.Debug().NewRecord(image) {
+func (is ImageService) Create(image *storage.Image, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	if !tx.NewRecord(image) {
 		return errNotCreateNewImage
 	}
 
-	err := server.Db.Debug().Create(image).Error
+	err := tx.Create(image).Error
 
 	return err
 }
-func (is ImageService) Update(img *storage.Image) error {
-	err := server.Db.Debug().Save(img).Error
+func (is ImageService) Update(img *storage.Image, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	err := tx.Save(img).Error
 	return err
 }
-func (is ImageService) Delete(imgId uint64) error {
-	image, err := is.GetImageById(imgId)
-	if err != nil {
+func (is ImageService) Delete(img *storage.Image, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	if err := tx.Delete(img).Error; err != nil {
 		return err
 	}
 
-	if err := server.Db.Debug().Delete(storage.Image{}, "img_id = ?", image.ImgId).Error; err != nil {
-		return err
-	}
-
-	myFilepath := fmt.Sprintf("%s%s", is.relativeImgDir, image.Filepath)
+	myFilepath := fmt.Sprintf("%s%s", is.relativeImgDir, img.Filepath)
 	if has := helpers.FileExists(myFilepath); has == true {
 		_ = os.Remove(myFilepath)
-	}
-
-	return nil
-}
-func (is ImageService) DeleteAll(images []*storage.Image) error {
-	for _, v := range images {
-		if err := is.Delete(v.ImgId); err != nil {
-			return err
-		}
 	}
 
 	return nil

@@ -6,4 +6,5 @@ type CatProperty struct {
 	Pos           uint64 `json:"pos" gorm:"column:pos"`
 	IsRequire     bool   `json:"isRequire" gorm:"column:is_require"`
 	IsCanAsFilter bool   `json:"isCanAsFilter" gorm:"column:is_can_as_filter"`
+	Comment       string `json:"comment" gorm:"column:comment"`
 }

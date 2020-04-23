@@ -10,33 +10,21 @@ import (
 )
 
 func NewPropertyService() *PropertyService {
-	prop := new(PropertyService)
-	prop.tblFields = "P.property_id, P.title, P.kind_property_id, P.name"
-
-	return prop
+	return new(PropertyService)
 }
 
-type PropertyService struct {
-	tblFields string
-}
+type PropertyService struct{}
 
-func (ps PropertyService) GetProperties(isOrderDesc bool) ([]*storage.Property, error) {
+func (ps PropertyService) GetProperties(order string) ([]*storage.Property, error) {
 	list := make([]*storage.Property, 0)
-	order := "asc"
-
-	if isOrderDesc {
-		order = "desc"
-	}
-
-	err := server.Db.Debug().Order("property_id " + order).Find(&list).Error
+	err := server.Db.Debug().Order(order).Find(&list).Error
 
 	return list, err
 }
 func (ps PropertyService) GetPropertiesWithKindName() ([]*response.PropertyWithKindName, error) {
 	list := make([]*response.PropertyWithKindName, 0)
 	query := `
-		SELECT ` + ps.tblFields + `, 
-				KP.name AS kind_property_name
+		SELECT 	P.*, KP.name AS kind_property_name
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 			ORDER BY P.property_id ASC`
@@ -53,11 +41,12 @@ func (ps PropertyService) GetPropertiesFullByCatId(catId uint64, withPropsOnlyFi
 	}
 
 	query := `
-		SELECT  ` + ps.tblFields + `, 
+		SELECT  P.*, 
 				KP.name AS kind_property_name, 
 				CP.pos AS property_pos,
 				CP.is_require AS property_is_require,
-				CP.is_can_as_filter AS property_is_can_as_filter
+				CP.is_can_as_filter AS property_is_can_as_filter,
+				CP.comment AS property_comment
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 				LEFT JOIN cats_properties CP ON CP.property_id = P.property_id
@@ -77,11 +66,12 @@ func (ps PropertyService) GetPropertiesFullByCatId(catId uint64, withPropsOnlyFi
 func (ps PropertyService) GetPropertiesFullByCatIds(catIds []uint64, valuesPropertyService *ValuesPropertyService) ([]*response.PropertyFull, error) {
 	list := make([]*response.PropertyFull, 0)
 	query := `
-		SELECT  ` + ps.tblFields + `,
+		SELECT  P.*,
 				KP.name AS kind_property_name, 
 				CP.pos AS property_pos,
 				CP.is_require AS property_is_require,
-				CP.is_can_as_filter AS property_is_can_as_filter
+				CP.is_can_as_filter AS property_is_can_as_filter,
+				CP.comment AS property_comment
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 				LEFT JOIN cats_properties CP ON CP.property_id = P.property_id
@@ -106,8 +96,7 @@ func (ps PropertyService) GetPropertyById(propertyId uint64) (*storage.Property,
 func (ps PropertyService) GetPropertyFullById(propertyId uint64, valuesPropertyService *ValuesPropertyService) (*response.PropertyFull, error) {
 	propertyFull := new(response.PropertyFull)
 	query := `
-		SELECT ` + ps.tblFields + `, 
-				KP.name AS kind_property_name 
+		SELECT P.*, KP.name AS kind_property_name 
 			FROM properties P
 				LEFT JOIN kind_properties KP ON KP.kind_property_id = P.kind_property_id
 			WHERE P.property_id = ?`
@@ -147,21 +136,25 @@ func (ps PropertyService) Update(property *storage.Property, tx *gorm.DB) error 
 
 	return err
 }
-func (ps PropertyService) Delete(propertyId uint64, tx *gorm.DB) error {
+func (ps PropertyService) Delete(propertyId uint64, valuesPropertyService *ValuesPropertyService, tx *gorm.DB) error {
 	if tx == nil {
 		tx = server.Db.Debug()
 	}
 
 	err := tx.Delete(storage.Property{}, "property_id = ?", propertyId).Error
+	if err != nil {
+		return err
+	}
+
+	err = valuesPropertyService.DeleteByPropertyId(propertyId, tx)
+	if err != nil {
+		return err
+	}
 
 	return err
 }
-func (ps PropertyService) ReWriteValuesForProperties(
-	propertyId uint64,
-	tx *gorm.DB,
-	mId map[string]string,
-	mTitle map[string]string,
-	mPos map[string]string) ([]storage.ValueProperty, error) {
+func (ps PropertyService) ReWriteValuesForProperties(propertyId uint64, tx *gorm.DB,
+	mId map[string]string, mTitle map[string]string, mPos map[string]string) ([]storage.ValueProperty, error) {
 
 	listOld := make([]storage.ValueProperty, 0)
 	listNew := make([]storage.ValueProperty, 0)

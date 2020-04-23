@@ -33,12 +33,6 @@
                                 </label>
                             </div>
                             <div class="form__row">
-                                <label>
-                                    <input type="checkbox" name="isFillPropertiesFull" value="true"/> присоединить
-                                    св-ва(полное)
-                                </label>
-                            </div>
-                            <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
@@ -74,6 +68,27 @@
                             <div class="form__row">
                                 <div class="form__title">позиция</div>
                                 <input type="number" name="pos"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">алиас для цены</div>
+                                <input type="text" name="priceAlias"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">суффик на цену</div>
+                                <input type="text" name="priceSuffix"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">вспомог-ый текст для заголовка</div>
+                                <input type="text" name="titleHelp"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">комментарий под заголовок</div>
+                                <input type="text" name="titleComment"/>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="isAutogenerateTitle" value="true"/> isAutogenerateTitle
+                                </label>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">назначенные свойства</div>
@@ -112,6 +127,27 @@
                             <div class="form__row">
                                 <div class="form__title">позиция</div>
                                 <input type="number" name="pos"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">алиас для цены</div>
+                                <input type="text" name="priceAlias"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">суффик на цену</div>
+                                <input type="text" name="priceSuffix"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">вспомог-ый текст для заголовока</div>
+                                <input type="text" name="titleHelp"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">комментарий под заголовок</div>
+                                <input type="text" name="titleComment"/>
+                            </div>
+                            <div class="form__row">
+                                <label>
+                                    <input type="checkbox" name="isAutogenerateTitle" value="true"/> isAutogenerateTitle
+                                </label>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">назначенные свойства</div>
@@ -237,7 +273,7 @@
                             </div>
                             <div class="form__row">
                                 <label>
-                                    <input type="checkbox" name="emailIsConfirmed" value="true"/> email_is_confirmed
+                                    <input type="checkbox" name="isEmailConfirmed" value="true"/> is_email_confirmed
                                 </label>
                             </div>
                             <div class="form__row">
@@ -279,11 +315,7 @@
                     <div>
                         <form class="form" action="/api/v1/ads" method="post" enctype="multipart/form-data">
                             <div class="form__row">
-                                <div class="form__title">файл(ы)</div>
-                                <input type="file" name="files" multiple="multiple" accept="image/jpeg,image/png"/>
-                            </div>
-                            <div class="form__row">
-                                <div class="form__title">заголовок *</div>
+                                <div class="form__title">название</div>
                                 <input type="text" name="title"/>
                             </div>
                             <div class="form__row">
@@ -295,12 +327,16 @@
                                 <input type="number" name="userId"/>
                             </div>
                             <div class="form__row">
-                                <div class="form__title">текст</div>
-                                <textarea name="text"></textarea>
+                                <div class="form__title">описание *</div>
+                                <textarea name="description"></textarea>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">цена</div>
                                 <input type="number" name="price"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">Youtube</div>
+                                <input type="text" name="youtube"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
@@ -322,21 +358,18 @@
                               enctype="multipart/form-data">
                             <input type="hidden" name="adId"/>
                             <div class="form__row">
-                                <div class="form__title">файл(ы)</div>
-                                <input type="file" name="files" multiple="multiple" accept="image/jpeg,image/png"/>
-                                <div class="form__files"></div>
-                            </div>
-                            <div class="form__row">
-                                <div class="form__title">заголовок</div>
-                                <input type="text" name="title" required="required"/>
+                                <div class="form__title">название</div>
+                                <input type="text" name="title"/>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">slug</div>
                                 <input type="text" name="slug" disabled="disabled"/>
                             </div>
                             <div class="form__row">
-                                <div class="form__title">id категории</div>
-                                <div class="target_for_cats_tree" data-name="catId"></div>
+                                <div class="form__title">id категории *</div>
+                                <div class="target_for_cats_tree"
+                                     data-name="catId"
+                                     data-without_required="true"></div>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">id пользователя</div>
@@ -344,16 +377,20 @@
                             </div>
                             <div class="form__row">
                                 <label>
-                                    <input type="checkbox" name="isDisabled" value="true"/> is_disabled
+                                    <input type="checkbox" name="isDisabled" value="true"/> если выбран, то выключен
                                 </label>
                             </div>
                             <div class="form__row">
-                                <div class="form__title">текст</div>
-                                <textarea name="text"></textarea>
+                                <div class="form__title">описание *</div>
+                                <textarea name="description"></textarea>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">цена</div>
                                 <input type="number" name="price"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">Youtube</div>
+                                <input type="text" name="youtube"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
@@ -382,6 +419,10 @@
                     <div>
                         <form class="form" action="/api/v1/properties" method="get">
                             <div class="form__row">
+                                <div class="form__title">id каталога</div>
+                                <input type="number" name="catId"/>
+                            </div>
+                            <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
@@ -406,16 +447,28 @@
                                 <input type="text" name="title"/>
                             </div>
                             <div class="form__row">
+                                <div class="form__title">[name=] *</div>
+                                <input type="text" name="name"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">суффикс</div>
+                                <input type="text" name="suffix"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">комментарий</div>
+                                <input type="text" name="comment"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">приватный комментарий</div>
+                                <input type="text" name="privateСomment"/>
+                            </div>
+                            <div class="form__row">
                                 <div class="form__title">разновидность тега *</div>
                                 <div class="target_for_kind_properties" data-name="kindPropertyId"></div>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">значения для св-ва</div>
                                 <div class="target_for_values_properties"></div>
-                            </div>
-                            <div class="form__row">
-                                <div class="form__title">[name=] *</div>
-                                <input type="text" name="name"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
@@ -433,7 +486,7 @@
                                 <input type="submit"/>
                             </div>
                         </form>
-                        <form class="form form-put-put-properties sx-reload hidden"
+                        <form class="form form-put-put-properties sx-reload0 hidden"
                               action="/api/v1/properties/:propertyId"
                               method="put">
                             <input type="hidden" name="propertyId"/>
@@ -442,16 +495,28 @@
                                 <input type="text" name="title"/>
                             </div>
                             <div class="form__row">
+                                <div class="form__title">[name=] *</div>
+                                <input type="text" name="name"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">суффикс</div>
+                                <input type="text" name="suffix"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">комментарий</div>
+                                <input type="text" name="comment"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">приватный комментарий</div>
+                                <input type="text" name="privateComment"/>
+                            </div>
+                            <div class="form__row">
                                 <div class="form__title">разновидность тега *</div>
                                 <div class="target_for_kind_properties" data-name="kindPropertyId"></div>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">значения для св-ва</div>
                                 <div class="target_for_values_properties"></div>
-                            </div>
-                            <div class="form__row">
-                                <div class="form__title">[name=] *</div>
-                                <input type="text" name="name"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>

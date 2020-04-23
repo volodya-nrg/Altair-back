@@ -3,12 +3,12 @@ package service
 import (
 	"altair/api/response"
 	"altair/pkg/helpers"
-	"altair/pkg/logger"
 	"altair/server"
 	"altair/storage"
 	"github.com/jinzhu/gorm"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -20,49 +20,13 @@ type CatService struct{}
 
 func (cs CatService) GetCats() ([]*storage.Cat, error) {
 	cats := make([]*storage.Cat, 0)
-	err := server.Db.Debug().Order("cat_id asc").Find(&cats).Error
+
+	err := server.Db.Debug().Order("parent_id asc, pos asc, cat_id asc").Find(&cats).Error
+	if err != nil {
+		return cats, err
+	}
 
 	return cats, err
-}
-func (cs CatService) GetCatsFull(serviceProperties *PropertyService, valuesPropertyService *ValuesPropertyService) ([]*response.СatFull, error) {
-	catsFull := make([]*response.СatFull, 0)
-	linkCatsProperties := make([]*storage.CatProperty, 0)
-	catIds := make([]uint64, 0)
-
-	cats, err := cs.GetCats()
-	if err != nil {
-		return catsFull, err
-	}
-
-	for _, cat := range cats {
-		catFull := new(response.СatFull)
-		catFull.Cat = cat
-		catsFull = append(catsFull, catFull)
-		catIds = append(catIds, cat.CatId)
-	}
-
-	propertiesFull, err := serviceProperties.GetPropertiesFullByCatIds(catIds, valuesPropertyService)
-	if err != nil {
-		return catsFull, err
-	}
-
-	// надо подхватитть связи каталога со св-вами
-	if err := server.Db.Debug().Table("cats_properties").Find(&linkCatsProperties).Error; err != nil {
-		return catsFull, err
-	}
-
-	// имеем полные каталоги, полные св-ва со значениями и их связи
-	for _, catFull := range catsFull {
-		for _, link := range linkCatsProperties {
-			for _, prop := range propertiesFull {
-				if link.CatId == catFull.CatId && link.PropertyId == prop.PropertyId {
-					catFull.PropertiesFull = append(catFull.PropertiesFull, prop)
-				}
-			}
-		}
-	}
-
-	return catsFull, nil
 }
 func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.CatTreeFull {
 	treeFull := new(response.CatTreeFull)
@@ -174,7 +138,8 @@ func (cs CatService) ReWriteCatsProperties(
 	mPropertyId map[string]string,
 	mPos map[string]string,
 	mIsRequire map[string]string,
-	mIsCanAsFilter map[string]string) ([]*storage.CatProperty, error) {
+	mIsCanAsFilter map[string]string,
+	mComment map[string]string) ([]*storage.CatProperty, error) {
 
 	list := make([]*storage.CatProperty, 0)
 
@@ -210,7 +175,10 @@ func (cs CatService) ReWriteCatsProperties(
 
 		if val, found := mIsCanAsFilter[k]; found {
 			catProperty.IsCanAsFilter = val == "true"
-			logger.Info.Println(catProperty.IsCanAsFilter)
+		}
+
+		if val, found := mComment[k]; found {
+			catProperty.Comment = strings.TrimSpace(val)
 		}
 
 		if !tbl.NewRecord(catProperty) {
@@ -386,6 +354,7 @@ func (cs CatService) deleteFromCatsPropertiesByCatId(catId uint64, tx *gorm.DB) 
 	return err
 }
 
+// ------------------
 type ReverseCat []*storage.Cat
 
 func (c ReverseCat) Len() int {

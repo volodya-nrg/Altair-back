@@ -12,9 +12,9 @@ func NewKindPropertyService() *KindPropertyService {
 
 type KindPropertyService struct{}
 
-func (ks KindPropertyService) GetKindProperties() ([]*storage.KindProperty, error) {
+func (ks KindPropertyService) GetKindProperties(orderBy string) ([]*storage.KindProperty, error) {
 	properties := make([]*storage.KindProperty, 0)
-	err := server.Db.Debug().Order("kind_property_id asc").Find(&properties).Error // сортировка нужна для теста
+	err := server.Db.Debug().Order(orderBy).Find(&properties).Error // сортировка нужна
 
 	return properties, err
 }

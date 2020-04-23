@@ -14,20 +14,20 @@ func NewUserService() *UserService {
 
 type UserService struct{}
 
-func (userService UserService) Get() bool {
+func (us UserService) Get() bool {
 	return true
 }
-func (userService UserService) GetUsers() ([]*storage.User, error) {
+func (us UserService) GetUsers() ([]*storage.User, error) {
 	users := make([]*storage.User, 0)
 	err := server.Db.Debug().Order("created_at desc").Find(&users).Error
 	return users, err
 }
-func (userService UserService) GetUserByID(userId uint64) (*storage.User, error) {
+func (us UserService) GetUserByID(userId uint64) (*storage.User, error) {
 	user := new(storage.User)
 	err := server.Db.Debug().First(user, userId).Error
 	return user, err
 }
-func (userService UserService) Create(user *storage.User, tx *gorm.DB) error {
+func (us UserService) Create(user *storage.User, tx *gorm.DB) error {
 	if err := validate(user); err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (userService UserService) Create(user *storage.User, tx *gorm.DB) error {
 
 	return err
 }
-func (userService UserService) Update(user *storage.User, tx *gorm.DB) error {
+func (us UserService) Update(user *storage.User, tx *gorm.DB) error {
 	if err := validate(user); err != nil {
 		return err
 	}
@@ -56,6 +56,17 @@ func (userService UserService) Update(user *storage.User, tx *gorm.DB) error {
 	err := tx.Save(user).Error
 
 	return err
+}
+func (us UserService) Delete(userId uint64, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db.Debug()
+	}
+
+	if err := tx.Where("user_id = ?", userId).Delete(storage.User{}).Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // private -------------------------------------------------------------------------------------------------------------

@@ -79,7 +79,7 @@ func getKindProperties() response.Result {
 	serviceKindProperties := service.NewKindPropertyService()
 	res := response.Result{}
 
-	pKindProperties, err := serviceKindProperties.GetKindProperties()
+	pKindProperties, err := serviceKindProperties.GetKindProperties("kind_property_id desc")
 	if err != nil {
 		res.Status = 500
 		res.Err = err

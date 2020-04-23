@@ -202,8 +202,8 @@ func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, mGetPara
 				(` + queryDop + `)
 			ORDER BY A.created_at DESC
 			LIMIT 100`
-
-	if err := server.Db.Debug().Raw(query, catId, "%"+title+"%").Scan(&pAds).Error; err != nil {
+	// LIKE "ABC%" = "ABC[ниже]" < KEY < "ABC[выше]". LIKE "%ABC" не может быть оптимизирован для исп-ия индексов
+	if err := server.Db.Debug().Raw(query, catId, title+"%").Scan(&pAds).Error; err != nil {
 		return pAdsFull, err
 	}
 
@@ -245,24 +245,27 @@ func (as AdService) Update(ad *storage.Ad, tx *gorm.DB) error {
 
 	return err
 }
-func (as AdService) Delete(adId uint64, tx *gorm.DB, serviceImages *ImageService) error {
+func (as AdService) Delete(adId uint64, tx *gorm.DB, serviceImages *ImageService, serviceAdDetail *AdDetailService) error {
 	if tx == nil {
 		tx = server.Db.Debug()
 	}
 
 	if err := tx.Where("ad_id = ?", adId).Delete(storage.Ad{}).Error; err != nil {
-		tx.Rollback()
 		return err
 	}
 
-	tx.Commit()
-
-	pImages, err := serviceImages.GetImagesByElIdsAndOpt([]uint64{adId}, "ad")
+	images, err := serviceImages.GetImagesByElIdsAndOpt([]uint64{adId}, "ad")
 	if err != nil {
 		return err
 	}
 
-	if err := serviceImages.DeleteAll(pImages); err != nil {
+	for _, v := range images {
+		if err := serviceImages.Delete(v, tx); err != nil {
+			return err
+		}
+	}
+
+	if err := serviceAdDetail.DeleteAllByAdId(adId, tx); err != nil {
 		return err
 	}
 
@@ -314,7 +317,7 @@ func (as AdService) getAdsFullByTitleAndCatId(title string, catId uint64, servic
 	pAds := make([]*storage.Ad, 0)
 	pAdsFull := make([]*response.AdFull, 0)
 	adIds := make([]uint64, 0)
-	query := server.Db.Debug().Where("title LIKE ?", "%"+title+"%")
+	query := server.Db.Debug().Where("title LIKE ?", title+"%")
 
 	if catId > 0 {
 		query = query.Where("cat_id = ?", catId)

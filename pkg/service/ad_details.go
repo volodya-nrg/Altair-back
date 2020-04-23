@@ -60,7 +60,7 @@ func (ads AdDetailService) Create(list []*storage.AdDetail, tx *gorm.DB) error {
 	}
 
 	for _, adDetail := range list {
-		if !server.Db.Debug().NewRecord(adDetail) {
+		if !tx.NewRecord(adDetail) {
 			return errOnNewRecordNewAdDetail
 		}
 		if err := tx.Create(adDetail).Error; err != nil {
@@ -71,7 +71,7 @@ func (ads AdDetailService) Create(list []*storage.AdDetail, tx *gorm.DB) error {
 	return nil
 }
 func (ads AdDetailService) Update(adId uint64, list []*storage.AdDetail, tx *gorm.DB) error {
-	if err := ads.DeleteByAdId(adId, tx); err != nil {
+	if err := ads.DeleteAllByAdId(adId, tx); err != nil {
 		return err
 	}
 
@@ -81,7 +81,7 @@ func (ads AdDetailService) Update(adId uint64, list []*storage.AdDetail, tx *gor
 
 	return nil
 }
-func (ads AdDetailService) DeleteByAdId(adId uint64, tx *gorm.DB) error {
+func (ads AdDetailService) DeleteAllByAdId(adId uint64, tx *gorm.DB) error {
 	if tx == nil {
 		tx = server.Db.Debug()
 	}
@@ -94,7 +94,8 @@ func (ads AdDetailService) DeleteByAdId(adId uint64, tx *gorm.DB) error {
 
 	return nil
 }
-func (ads AdDetailService) BuildDataFromRequestFormAndCatProps(adId uint64, postForm url.Values, propsFull []*response.PropertyFull) ([]*storage.AdDetail, error) {
+func (ads AdDetailService) BuildDataFromRequestFormAndCatProps(
+	adId uint64, postForm *url.Values, propsFull []*response.PropertyFull) ([]*storage.AdDetail, error) {
 	adDetails := make([]*storage.AdDetail, 0)
 
 	for _, prop := range propsFull {
@@ -128,12 +129,12 @@ func (ads AdDetailService) BuildDataFromRequestFormAndCatProps(adId uint64, post
 			}
 		}
 
-		pAdDetail := new(storage.AdDetail)
-		pAdDetail.AdId = adId
-		pAdDetail.PropertyId = prop.PropertyId
-		pAdDetail.Value = sValue
+		adDetail := new(storage.AdDetail)
+		adDetail.AdId = adId
+		adDetail.PropertyId = prop.PropertyId
+		adDetail.Value = sValue
 
-		adDetails = append(adDetails, pAdDetail)
+		adDetails = append(adDetails, adDetail)
 	}
 
 	return adDetails, nil

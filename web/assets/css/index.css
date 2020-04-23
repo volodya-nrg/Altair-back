@@ -146,6 +146,8 @@ label + label {
 
 .dynamic__item {
     margin-top: 5px;
+    padding: 5px 10px;
+    background-color: floralwhite;
 }
 
 .dynamic__inputs {
@@ -185,4 +187,8 @@ label + label {
     margin-top: 10px;
     background-color: floralwhite;
     padding: 10px;
+}
+
+textarea[name="select_as_textarea"] {
+    margin-top: 10px;
 }

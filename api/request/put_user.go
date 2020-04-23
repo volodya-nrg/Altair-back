@@ -8,6 +8,6 @@ type PutUser struct {
 	PasswordOld      string `form:"passwordOld"`
 	Password         string `form:"password"`
 	PasswordConfirm  string `form:"passwordConfirm"`
-	EmailIsConfirmed bool   `form:"emailIsConfirmed"`
+	IsEmailConfirmed bool   `form:"isEmailConfirmed"`
 	// File             *multipart.FileHeader `form:"file"`
 }

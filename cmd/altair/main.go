@@ -14,7 +14,13 @@ import (
 	"os"
 )
 
-// sort - https://gobyexample.com/sorting
+/*
+ЗАМЕТКИ:
+ - фото хранятся в табл images и в value_properties (id записей в поле value). POST/PUT "files" - зарез-но
+ - sort - https://gobyexample.com/sorting
+ - INSERT INTO cats_properties (cat_id, property_id, pos, is_require, is_can_as_filter, `comment`) VALUES
+ 	- (x, 91, 3, 1, 0, '5'),\n
+*/
 
 func init() {
 	// gin.SetMode(gin.ReleaseMode)
@@ -38,7 +44,7 @@ func main() {
 }
 func setupRouter() *gin.Engine {
 	configCors := cors.DefaultConfig()
-	configCors.AllowOrigins = []string{"http://localhost:8080"}
+	configCors.AllowOrigins = []string{"http://localhost:8080", "http://localhost:4200"}
 	configCors.AllowCredentials = true
 	configCors.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 
@@ -64,7 +70,7 @@ func setupRouter() *gin.Engine {
 		}
 		catsTree := serviceCats.GetCatsAsTree(cats)
 
-		kindProperties, err := serviceKindProperties.GetKindProperties()
+		kindProperties, err := serviceKindProperties.GetKindProperties("kind_property_id asc")
 		if err != nil {
 			logger.Warning.Println(err)
 			c.JSON(500, err.Error())
@@ -72,7 +78,7 @@ func setupRouter() *gin.Engine {
 		}
 
 		// выгрузить все property для категорий
-		properties, err := serviceProperties.GetProperties(false)
+		properties, err := serviceProperties.GetProperties("title asc")
 		if err != nil {
 			logger.Warning.Println(err)
 			c.JSON(500, err.Error())
@@ -98,6 +104,7 @@ func setupRouter() *gin.Engine {
 	v1.GET("/users/:userId", controller.GetUsersUserId)
 	v1.POST("/users", controller.PostUsers)
 	v1.PUT("/users/:userId", controller.PutUsersUserId)
+	v1.DELETE("/users/:userId", controller.DeleteUsersUserId)
 
 	v1.GET("/ads", controller.GetAds)
 	v1.GET("/ads/:adId", controller.GetAdsAdId)

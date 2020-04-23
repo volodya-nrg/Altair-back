@@ -118,7 +118,7 @@ func UploadImage(file *multipart.FileHeader, pathUpload string, funcSave func(fi
 	}
 
 	hash := fmt.Sprintf("%x", h.Sum(nil))
-	filename := fmt.Sprintf("%s%s%s%s", hash, "_", RandStringRunes(4), extension)
+	filename := fmt.Sprintf("%s%d%s%s%s", hash[:4], time.Now().Unix(), "_", RandStringRunes(4), extension)
 
 	for k, v := range filename {
 		ch := rune(v)
@@ -304,6 +304,18 @@ func PrettyPrint(i interface{}) {
 	s, _ := json.MarshalIndent(i, "", "\t")
 
 	fmt.Println(string(s))
+}
+func GetTagsFromStruct(i interface{}, tagName string) []string {
+	aTagName := make([]string, 0)
+
+	v := reflect.ValueOf(i)
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		aTagName = append(aTagName, f.Tag.Get(tagName))
+	}
+
+	return aTagName
 }
 
 // private -------------------------------------------------------------------------------------------------------------

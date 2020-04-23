@@ -8,5 +8,6 @@ type PropertyFull struct {
 	PropertyPos      uint64                   `json:"propertyPos" gorm:"column:property_pos"`
 	IsRequire        bool                     `json:"propertyIsRequire" gorm:"column:property_is_require"`
 	IsCanAsFilter    bool                     `json:"propertyIsCanAsFilter" gorm:"column:property_is_can_as_filter"`
+	Comment          string                   `json:"propertyComment" gorm:"column:property_comment"`
 	Values           []*storage.ValueProperty `json:"values"`
 }

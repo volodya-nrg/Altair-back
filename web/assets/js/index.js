@@ -152,8 +152,9 @@ function insertCatsTreeAsTagSelect(selectorTarget) {
 
         for (var key in branch) {
             var el = branch[key];
+            var option = '<option value="' + el.catId + '" data-pos="' + el.pos + '">' + prefix + el.name + '</option>';
 
-            $reciever.append('<option value="' + el.catId + '">' + prefix + el.name + '</option>');
+            $reciever.append(option);
 
             if (el.childes && el.childes.length) {
                 walkForCatsTree(el.childes, $reciever, prefix + "|----");
@@ -175,8 +176,24 @@ function insertKindsProperties(selectorPlace) {
         var $self = $(this);
         var name = $self.data("name");
         var $selectCopy = $select.clone();
+        var isPostForm = $self.closest("form").attr("method") === "post";
 
         $selectCopy.attr("name", name);
+
+        if (isPostForm) {
+            $selectCopy.change(function () {
+                var $self = $(this);
+                var val = $self.val();
+                var text = $self.find("option[value='" + val + "']").text();
+
+                $self.next('textarea').remove();
+
+                if (text === 'select') {
+                    $self.after($('<textarea name="select_as_textarea" rows="10"></textarea>'));
+                }
+            });
+        }
+
         $self.append($selectCopy);
     });
 }
@@ -193,10 +210,12 @@ function insertProperties(selectorPlace) {
     var $dynamic = $(tpl);
     var $select = $('<select></select>');
 
-    $select.append('<option value="0"></option>');
+    $select.append('<option value="0"></option>'); // почему тут 0? (забываю иногда)
     for (var key in ALTAIR.properties) {
         var el = ALTAIR.properties[key];
-        $select.append('<option value="' + el.propertyId + '" data-title="' + el.title + '">' + el.title + '</option>');
+        var privateComment = el.privateComment ? " (" + el.privateComment + ")" : "";
+
+        $select.append('<option value="' + el.propertyId + '" data-title="' + el.title + '">' + el.title + privateComment + '</option>');
     }
 
     $(selectorPlace).each(function () {
@@ -283,7 +302,7 @@ function formPutPutUsers(data, $form) {
     $form.find('input[name="userId"]').val(data.userId);
     $form.find('input[name="name"]').val(data.name);
     $form.find('input[name="email"]').val(data.email);
-    $form.find('input[name="emailIsConfirmed"]').prop("checked", data.emailIsConfirmed);
+    $form.find('input[name="isEmailConfirmed"]').prop("checked", data.isEmailConfirmed);
 
     if (data.avatar) {
         // storage.Image
@@ -310,6 +329,11 @@ function formPutPutCats(data, $form) {
     $form.find('select[name="parentId"]').val(data.parentId);
     $form.find('input[name="pos"]').val(data.pos);
     $form.find('input[name="isDisabled"]').prop("checked", data.isDisabled);
+    $form.find('input[name="priceAlias"]').val(data.priceAlias);
+    $form.find('input[name="priceSuffix"]').val(data.priceSuffix);
+    $form.find('input[name="titleHelp"]').val(data.titleHelp);
+    $form.find('input[name="titleComment"]').val(data.titleComment);
+    $form.find('input[name="isAutogenerateTitle"]').prop("checked", data.isAutogenerateTitle);
 
     if (data.properties && data.properties.length) {
         for (var i = 0; i < data.properties.length; i++) {
@@ -326,14 +350,11 @@ function formPutPutAds(data, $form) {
     $form.find('input[name="title"]').val(data.title);
     $form.find('input[name="slug"]').val(data.slug);
     $form.find('input[name="userId"]').val(data.userId);
-    $form.find('textarea[name="text"]').val(data.text);
+    $form.find('textarea[name="description"]').val(data.description);
     $form.find('input[name="price"]').val(data.price);
     $form.find('input[name="isDisabled"]').prop("checked", data.isDisabled);
+    $form.find('input[name="youtube"]').val(data.youtube);
     $selectCat.val(data.catId);
-
-    if (data.images.length) {
-        appendPhotos($form, "filesAlreadyHas[]", data.images);
-    }
 
     // в пришедшие позже св-ва вставим актуальные
     changeSelectOnCatsTree($selectCat, function () {
@@ -350,6 +371,10 @@ function formPutPutAds(data, $form) {
                 $box.find('[name="' + detail.propertyName + '"]').val(detail.value);
             }
         }
+
+        if (data.images.length) {
+            appendPhotos($form, "filesAlreadyHas[]", data.images);
+        }
     });
 }
 
@@ -359,7 +384,9 @@ function formPutPutProperties(data, $form) {
     $form.find('input[name="title"]').val(data.title);
     $form.find('input[name="name"]').val(data.name);
     $form.find('select[name="kindPropertyId"]').val(data.kindPropertyId);
-    //$form.find('input[name="isCanAsFilter"]').prop("checked", data.isCanAsFilter);
+    $form.find('input[name="suffix"]').val(data.suffix);
+    $form.find('input[name="comment"]').val(data.comment);
+    $form.find('input[name="privateComment"]').val(data.privateComment);
 
     if (data.values && data.values.length) {
         for (var i = 0; i < data.values.length; i++) {
@@ -386,10 +413,22 @@ function addProperty($ctx, properties) {
     var $select = $owner.find('.dynamic__controls select');
     var propertyIdSrc = parseInt($select.val());
     var index = $item.length + 1;
-    var propertyId = properties && properties.propertyId || propertyIdSrc;
-    var pos = properties && properties.propertyPos || index;
-    var propertyIsRequire = properties && properties.propertyIsRequire || false;
-    var propertyIsCanAsFilter = properties && properties.propertyIsCanAsFilter || false;
+
+    var propertyId = propertyIdSrc;
+    var pos = index;
+    var propertyIsRequire = false;
+    var propertyIsCanAsFilter = false;
+    var propertyComment = "";
+    var privateComment = "";
+
+    if (properties) {
+        propertyId = properties.propertyId;
+        pos = properties.propertyPos;
+        propertyIsRequire = properties.propertyIsRequire;
+        propertyIsCanAsFilter = properties.propertyIsCanAsFilter;
+        propertyComment = properties.propertyComment;
+        privateComment = properties.privateComment;
+    }
 
     if (!propertyId) {
         alert('Ошибка: не выбрано значение!');
@@ -400,16 +439,20 @@ function addProperty($ctx, properties) {
     var tpl = [
         '<div class="dynamic__item" data-property_id="' + propertyId + '">',
         '   <input type="hidden" name="propertyId[' + index + ']" value="' + propertyId + '"/>',
+        '   <small><strong>' + $option.data('title') + '</strong> ' + privateComment + '</small>:',
         '   <div class="dynamic__inputs">',
-        '       <input type="text" value="' + $option.data('title') + '" readonly="readonly"/>',
+        '       <input type="text" name="comment[' + index + ']" value="' + propertyComment + '" placeholder="comment"/>',
         '       <input class="dynamic__input_mid" type="number" name="pos[' + index + ']" value="' + pos + '"/>',
-        '       <label class="dynamic__input_lg">',
+        '       <div class="dynamic__input_short"><span class="icon dynamic__del">-</span></div>',
+        '   </div>',
+        '   <div class="dynamic__inputs">',
+        '       <label>',
         '           <input type="checkbox" name="isRequire[' + index + ']" value="true"' + (propertyIsRequire ? ' checked="checked"' : "") + '/> обяз.',
         '       </label>',
-        '       <label class="dynamic__input_lg">',
+        '       <label>',
         '           <input type="checkbox" name="isCanAsFilter[' + index + ']" value="true"' + (propertyIsCanAsFilter ? ' checked="checked"' : "") + '/> как фильтр',
         '       </label>',
-        '       <div class="dynamic__input_short"><span class="icon dynamic__del">-</span></div>',
+        '       <div></div>',
         '   </div>',
         '</div>',
     ].join('');
@@ -444,6 +487,7 @@ function addValueForProperty($ctx, oValue) {
     var title = oValue && oValue.title || "";
     var pos = oValue && oValue.pos || index;
 
+    title = title.replace(/"/g, '&quot;');
     var tpl = [
         '<div class="dynamic__item">',
         '   <input type="hidden" name="valueId[' + index + ']" value="' + id + '"/>',
@@ -511,9 +555,10 @@ function buildHTMLCatProperties(oCatData, isWithoutRequired) {
         var symbolRequire = property.propertyIsRequire ? ' *' : '';
         var title = property.title;
         var tag = getHTMLTagCatProperty(property, isWithoutRequired);
+        var privateComment = property.privateComment ? ': ' + property.privateComment : '';
         var row = [
             '<div class="form__row">',
-            '   <div class="form__title">' + title + symbolRequire + '</div>',
+            '   <div class="form__title"><strong>' + title + symbolRequire + '</strong>' + privateComment + '</div>',
             tag,
             '</div>',
         ].join('');
@@ -530,10 +575,11 @@ function getHTMLTagCatProperty(property, isWithoutRequired) {
     var name = property.name;
     var pos = property.propertyPos;
     var propId = property.propertyId;
+    var propertyComment = property.propertyComment;
     var result = 'unknown';
     var el = '';
 
-    if (kind === 'input') {
+    if (kind === 'input' || kind === 'ymaps') {
         el += '<input name="' + name + '" type="text" ' + propRequire + ' data-pos="' + pos + '" value=""/>';
 
     } else if (kind === 'input_number') {
@@ -548,8 +594,15 @@ function getHTMLTagCatProperty(property, isWithoutRequired) {
     } else if (kind === 'textarea') {
         el += '<textarea name="' + name + '" ' + propRequire + ' data-pos="' + pos + '"></textarea>';
 
-    } else if (kind === 'photo') {
-        el += '<div class="photo"></div>';
+    } else if (kind === 'photo') { // вид св-ва
+        var maxFiles = parseInt(propertyComment) || 0;
+        var multiple = maxFiles > 1 ? ' multiple="multiple"' : '';
+        var disabled = !maxFiles ? ' disabled="disabled"' : '';
+
+        el += '<div data-max="' + maxFiles + '">' +
+            '       <input name="files" type="file" ' + propRequire + multiple + disabled + ' data-pos="' + pos + '" accept="image/jpeg,image/png"/>' +
+            '       <div class="form__files"></div>',
+            '  </div>';
 
     } else if (kind === 'radio' && property.values) {
         for (var i = 0; i < property.values.length; i++) {
