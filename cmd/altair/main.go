@@ -16,10 +16,12 @@ import (
 
 /*
 ЗАМЕТКИ:
- - фото хранятся в табл images и в value_properties (id записей в поле value). POST/PUT "files" - зарез-но
+ - фото хранятся в табл images и в value_props (id записей в поле value). POST/PUT "files" - зарез-но
  - sort - https://gobyexample.com/sorting
- - INSERT INTO cats_properties (cat_id, property_id, pos, is_require, is_can_as_filter, `comment`) VALUES
+ - INSERT INTO cats_props (cat_id, prop_id, pos, is_require, is_can_as_filter, `comment`) VALUES
  	- (x, 91, 3, 1, 0, '5'),\n
+ - SHOW VARIABLES WHERE variable_name = 'max_user_connections' (10)
+ - https://github.com/golang/go/wiki/SliceTricks
 */
 
 func init() {
@@ -58,9 +60,10 @@ func setupRouter() *gin.Engine {
 	route.Use(cors.New(configCors))
 
 	route.GET("/", func(c *gin.Context) {
+		output := c.DefaultQuery("format", "html")
 		serviceCats := service.NewCatService()
-		serviceKindProperties := service.NewKindPropertyService()
-		serviceProperties := service.NewPropertyService()
+		serviceKindProps := service.NewKindPropService()
+		serviceProps := service.NewPropService()
 
 		cats, err := serviceCats.GetCats()
 		if err != nil {
@@ -68,28 +71,35 @@ func setupRouter() *gin.Engine {
 			c.JSON(500, err.Error())
 			return
 		}
+
 		catsTree := serviceCats.GetCatsAsTree(cats)
 
-		kindProperties, err := serviceKindProperties.GetKindProperties("kind_property_id asc")
+		kindProps, err := serviceKindProps.GetKindProps("kind_prop_id asc")
 		if err != nil {
 			logger.Warning.Println(err)
 			c.JSON(500, err.Error())
 			return
 		}
 
-		// выгрузить все property для категорий
-		properties, err := serviceProperties.GetProperties("title asc")
+		props, err := serviceProps.GetProps("title asc")
 		if err != nil {
 			logger.Warning.Println(err)
 			c.JSON(500, err.Error())
 			return
 		}
 
-		c.HTML(http.StatusOK, "index.html", gin.H{
-			"catsTree":       catsTree,
-			"kindProperties": kindProperties,
-			"properties":     properties,
-		})
+		data := gin.H{
+			"catsTree":  catsTree,
+			"kindProps": kindProps,
+			"props":     props,
+		}
+
+		if output == "json" {
+			c.JSON(http.StatusOK, data)
+			return
+		}
+
+		c.HTML(http.StatusOK, "index.html", data)
 	})
 
 	v1 := route.Group("/api/v1")
@@ -112,19 +122,21 @@ func setupRouter() *gin.Engine {
 	v1.PUT("/ads/:adId", controller.PutAdsAdId)
 	v1.DELETE("/ads/:adId", controller.DeleteAdsAdId)
 
-	v1.GET("/properties", controller.GetProperties)
-	v1.GET("/properties/:propertyId", controller.GetPropertiesPropertyId)
-	v1.POST("/properties", controller.PostProperties)
-	v1.PUT("/properties/:propertyId", controller.PutPropertiesPropertyId)
-	v1.DELETE("/properties/:propertyId", controller.DeletePropertiesPropertyId)
+	v1.GET("/props", controller.GetProps)
+	v1.GET("/props/:propId", controller.GetPropsPropId)
+	v1.POST("/props", controller.PostProps)
+	v1.PUT("/props/:propId", controller.PutPropsPropId)
+	v1.DELETE("/props/:propId", controller.DeletePropsPropId)
 
-	v1.GET("/kind_properties", controller.GetKindProperties)
-	v1.GET("/kind_properties/:kindPropertyId", controller.GetKindPropertiesKindPropertyId)
-	v1.POST("/kind_properties", controller.PostKindProperties)
-	v1.PUT("/kind_properties/:kindPropertyId", controller.PutKindPropertiesKindPropertyId)
-	v1.DELETE("/kind_properties/:kindPropertyId", controller.DeleteKindPropertiesKindPropertyId)
+	v1.GET("/kind_props", controller.GetKindProps)
+	v1.GET("/kind_props/:kindPropId", controller.GetKindPropsKindPropId)
+	v1.POST("/kind_props", controller.PostKindProps)
+	v1.PUT("/kind_props/:kindPropId", controller.PutKindPropsKindPropId)
+	v1.DELETE("/kind_props/:kindPropId", controller.DeleteKindPropsKindPropId)
 
 	v1.GET("/search/ads", controller.GetSearchAds)
+	v1.GET("/pages/ad/:adId", controller.GetPagesAdAdId)
+	v1.GET("/pages/main", controller.GetPagesMain)
 	v1.GET("/test", controller.GetTest)
 
 	route.NoRoute(func(c *gin.Context) {

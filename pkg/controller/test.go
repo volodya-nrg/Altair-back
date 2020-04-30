@@ -9,16 +9,6 @@ import (
 )
 
 func GetTest(c *gin.Context) {
-	//logger.Info.Println("enter in GetTest")
-	//defer logger.Info.Println("exit in mGetTestyfn")
-	//
-	//go func() {
-	//	logger.Info.Println("enter in gor")
-	//	defer logger.Info.Println("exit in gor")
-	//	time.Sleep(time.Second * 3)
-	//	logger.Info.Println("do gor")
-	//}()
-
 	//PrintMemUsage()
 	//timeStart := time.Now()
 	//for i := 1000000; i >= 0; i-- {
@@ -28,6 +18,22 @@ func GetTest(c *gin.Context) {
 	//fmt.Println("====>", time.Since(timeStart))
 	//runtime.GC()
 	//PrintMemUsage()
+
+	//serviceCats := service.NewCatService()
+	//cats, _ := serviceCats.GetCats()
+	//catsTree := serviceCats.GetCatsAsTree(cats)
+	//list := serviceCats.GetAncestors(catsTree, 479)
+
+	//serviceAds := service.NewAdService()
+	//ads, _ := serviceAds.GetAds("created_at desc")
+	//for _, v := range ads {
+	//	v.Description = helpers.Lorem(helpers.RandIntByRange(10, 300))
+	//	v.Price = uint64(helpers.RandIntByRange(0, 999999999))
+	//	v.Title = helpers.Lorem(helpers.RandIntByRange(10, 100))
+	//	v.Youtube = "https://youtu.be/rX9-jFV8iz8"
+	//	v.Ip = "127.0.0.1"
+	//	serviceAds.Update(v, nil)
+	//}
 
 	c.JSON(200, nil)
 }

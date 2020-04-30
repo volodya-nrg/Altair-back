@@ -4,6 +4,7 @@ import "altair/storage"
 
 type AdDetailExt struct {
 	*storage.AdDetail
-	PropertyName     string `json:"propertyName" gorm:"column:property_name"`
-	KindPropertyName string `json:"kindPropertyName" gorm:"column:kind_property_name"`
+	PropName     string `json:"propName" gorm:"column:prop_name"`
+	KindPropName string `json:"kindPropName" gorm:"column:kind_prop_name"`
+	ValueName    string `json:"valueName" gorm:"column:value_name"`
 }

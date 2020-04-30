@@ -22,10 +22,10 @@ type ImageService struct {
 }
 
 func (is ImageService) GetImagesByElIdsAndOpt(elIds []uint64, opt string) ([]*storage.Image, error) {
-	pImages := make([]*storage.Image, 0)
-	err := server.Db.Debug().Where("el_id IN (?) AND opt = ?", elIds, opt).Find(&pImages).Error
+	images := make([]*storage.Image, 0)
+	err := server.Db.Debug().Where("el_id IN (?) AND opt = ?", elIds, opt).Find(&images).Error
 
-	return pImages, err
+	return images, err
 }
 func (is ImageService) GetImageById(imgId uint64) (*storage.Image, error) {
 	img := new(storage.Image)

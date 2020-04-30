@@ -1,8 +1,8 @@
 package request
 
-type PostProperty struct {
+type PostProp struct {
 	Title            string `form:"title" binding:"required"`
-	KindPropertyId   uint64 `form:"kindPropertyId" binding:"required"`
+	KindPropId       uint64 `form:"kindPropId" binding:"required"`
 	Name             string `form:"name" binding:"required"`
 	Suffix           string `form:"suffix"`
 	Comment          string `form:"comment"`

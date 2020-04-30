@@ -19,7 +19,54 @@ import (
 )
 
 func GetAds(c *gin.Context) {
-	res := getAds(c.DefaultQuery("catId", ""))
+	catIdSrc := c.DefaultQuery("catId", "0")
+	limitSrc := c.DefaultQuery("limit", "0")
+	offsetSrc := c.DefaultQuery("offset", "0")
+	var limitDefault uint64 = 10
+
+	catId, err := strconv.ParseUint(catIdSrc, 10, 64)
+	if err != nil {
+		logger.Warning.Println(err)
+		res := response.Result{
+			Status: 500,
+			Data:   err.Error(),
+		}
+
+		c.JSON(res.Status, res.Data)
+		return
+	}
+
+	limit, err := strconv.ParseUint(limitSrc, 10, 64)
+	if err != nil {
+		logger.Warning.Println(err)
+		res := response.Result{
+			Status: 500,
+			Data:   err.Error(),
+		}
+
+		c.JSON(res.Status, res.Data)
+		return
+	}
+	if limit < 1 {
+		limit = limitDefault
+	}
+
+	offset, err := strconv.ParseUint(offsetSrc, 10, 64)
+	if err != nil {
+		logger.Warning.Println(err)
+		res := response.Result{
+			Status: 500,
+			Data:   err.Error(),
+		}
+
+		c.JSON(res.Status, res.Data)
+		return
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	res := getAds(catId, limit, offset)
 	if res.Err != nil {
 		res.Data = res.Err.Error()
 	}
@@ -91,28 +138,14 @@ func DeleteAdsAdId(c *gin.Context) {
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func getAds(catIdSrc string) response.Result {
+func getAds(catId uint64, limit uint64, offset uint64) response.Result {
 	serviceAds := service.NewAdService()
 	serviceCats := service.NewCatService()
-	serviceImages := service.NewImageService()
-	serviceAdDetails := service.NewAdDetailService()
 	res := response.Result{}
 	sliceCatIds := make([]uint64, 0)
 
-	if catIdSrc == "" {
-		catIdSrc = "0"
-	}
-
-	catId, err := strconv.ParseUint(catIdSrc, 10, 64)
-	if err != nil {
-		logger.Warning.Println(err)
-		res.Status = 500
-		res.Err = err
-		return res
-	}
-
 	if catId > 0 {
-		pCats, err := serviceCats.GetCats()
+		cats, err := serviceCats.GetCats()
 		if err != nil {
 			logger.Warning.Println(err)
 			res.Status = 500
@@ -120,13 +153,13 @@ func getAds(catIdSrc string) response.Result {
 			return res
 		}
 
-		pCatsTree := serviceCats.GetCatsAsTree(pCats)
-		pCatsDescendants := serviceCats.GetDescendantsNastedLoop(pCatsTree, catId)
-		sliceCatIds = append(sliceCatIds, serviceCats.GetIdsFromCatsTree(pCatsDescendants)...)
+		catsTree := serviceCats.GetCatsAsTree(cats)
+		catsDescendants := serviceCats.GetDescendants(catsTree, catId) // потомки
+		sliceCatIds = append(sliceCatIds, serviceCats.GetIdsFromCatsTree(catsDescendants)...)
 		sort.Slice(sliceCatIds, func(i, j int) bool { return sliceCatIds[i] < sliceCatIds[j] })
 	}
 
-	adsFull, err := serviceAds.GetAdsFull(sliceCatIds, false, true, serviceImages, serviceAdDetails)
+	adsFull, err := serviceAds.GetAdsFull(sliceCatIds, false, "created_at desc", limit, offset)
 	if err != nil {
 		logger.Warning.Println(err)
 		res.Status = 500
@@ -141,8 +174,6 @@ func getAds(catIdSrc string) response.Result {
 }
 func getAdsAdId(sAdId string) response.Result {
 	serviceAds := service.NewAdService()
-	serviceImages := service.NewImageService()
-	serviceAdDetails := service.NewAdDetailService()
 	res := response.Result{}
 
 	adId, err := strconv.ParseUint(sAdId, 10, 64)
@@ -153,7 +184,7 @@ func getAdsAdId(sAdId string) response.Result {
 		return res
 	}
 
-	adFull, err := serviceAds.GetAdFullById(adId, serviceImages, serviceAdDetails)
+	adFull, err := serviceAds.GetAdFullById(adId)
 	if gorm.IsRecordNotFoundError(err) {
 		logger.Warning.Println(err)
 		res.Status = 404
@@ -174,10 +205,8 @@ func getAdsAdId(sAdId string) response.Result {
 }
 func postAds(postRequest *request.PostAd, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error, postForm *url.Values) response.Result {
 	serviceAds := service.NewAdService()
-	serviceImages := service.NewImageService()
-	serviceProperties := service.NewPropertyService()
+	serviceProps := service.NewPropService()
 	serviceAdDetails := service.NewAdDetailService()
-	serviceValuesProperty := service.NewValuesPropertyService()
 	res := response.Result{}
 	ad := new(storage.Ad)
 	tx := server.Db.Debug().Begin()
@@ -186,7 +215,7 @@ func postAds(postRequest *request.PostAd, form *multipart.Form, fnUpload func(fi
 	ad.CatId = postRequest.CatId
 	ad.UserId = postRequest.UserId
 	ad.Price = postRequest.Price
-	ad.Description = strings.TrimSpace(postRequest.Description)
+	ad.Description = postRequest.Description
 	ad.Youtube = strings.TrimSpace(postRequest.Youtube)
 
 	if err := serviceAds.Create(ad, tx); err != nil {
@@ -196,7 +225,7 @@ func postAds(postRequest *request.PostAd, form *multipart.Form, fnUpload func(fi
 		return res
 	}
 
-	propsFull, err := serviceProperties.GetPropertiesFullByCatId(ad.CatId, false, serviceValuesProperty)
+	propsFull, err := serviceProps.GetPropsFullByCatId(ad.CatId, false)
 	if err != nil {
 		tx.Rollback()
 		res.Status = 500
@@ -205,7 +234,7 @@ func postAds(postRequest *request.PostAd, form *multipart.Form, fnUpload func(fi
 	}
 
 	images := make([]*storage.Image, 0)
-	if err := workWithPhoto(ad, images, propsFull, tx, form, serviceImages, serviceAds, postForm, fnUpload); err != nil {
+	if err := workWithPhoto(ad, images, propsFull, tx, form, postForm, fnUpload); err != nil {
 		tx.Rollback()
 		logger.Warning.Println(err)
 		res.Status = 500
@@ -231,7 +260,7 @@ func postAds(postRequest *request.PostAd, form *multipart.Form, fnUpload func(fi
 
 	tx.Commit()
 
-	adFull, err := serviceAds.GetAdFullById(ad.AdId, serviceImages, serviceAdDetails)
+	adFull, err := serviceAds.GetAdFullById(ad.AdId)
 	if err != nil {
 		res.Status = 500
 		res.Err = err
@@ -246,9 +275,8 @@ func postAds(postRequest *request.PostAd, form *multipart.Form, fnUpload func(fi
 func putAds(sAdId string, putRequest *request.PutAd, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error, postForm *url.Values) response.Result {
 	serviceAds := service.NewAdService()
 	serviceImages := service.NewImageService()
-	serviceProperties := service.NewPropertyService()
+	serviceProps := service.NewPropService()
 	serviceAdDetails := service.NewAdDetailService()
-	serviceValuesProperty := service.NewValuesPropertyService()
 	res := response.Result{}
 
 	adId, err := strconv.ParseUint(sAdId, 10, 64)
@@ -276,7 +304,7 @@ func putAds(sAdId string, putRequest *request.PutAd, form *multipart.Form, fnUpl
 	ad.CatId = putRequest.CatId
 	ad.UserId = putRequest.UserId
 	ad.Price = putRequest.Price
-	ad.Description = strings.TrimSpace(putRequest.Description)
+	ad.Description = putRequest.Description
 	ad.IsDisabled = putRequest.IsDisabled
 	ad.Youtube = strings.TrimSpace(putRequest.Youtube)
 
@@ -288,7 +316,7 @@ func putAds(sAdId string, putRequest *request.PutAd, form *multipart.Form, fnUpl
 	}
 
 	// достанем св-ва данной категории
-	propsFull, err := serviceProperties.GetPropertiesFullByCatId(ad.CatId, false, serviceValuesProperty)
+	propsFull, err := serviceProps.GetPropsFullByCatId(ad.CatId, false)
 	if err != nil {
 		tx.Rollback()
 		res.Status = 500
@@ -331,7 +359,7 @@ func putAds(sAdId string, putRequest *request.PutAd, form *multipart.Form, fnUpl
 		images = restOfImages
 	}
 
-	if err := workWithPhoto(ad, images, propsFull, tx, form, serviceImages, serviceAds, postForm, fnUpload); err != nil {
+	if err := workWithPhoto(ad, images, propsFull, tx, form, postForm, fnUpload); err != nil {
 		tx.Rollback()
 		logger.Warning.Println(err)
 		res.Status = 500
@@ -356,7 +384,7 @@ func putAds(sAdId string, putRequest *request.PutAd, form *multipart.Form, fnUpl
 
 	tx.Commit()
 
-	adFull, err := serviceAds.GetAdFullById(ad.AdId, serviceImages, serviceAdDetails)
+	adFull, err := serviceAds.GetAdFullById(ad.AdId)
 	if err != nil {
 		res.Status = 500
 		res.Err = err
@@ -370,8 +398,6 @@ func putAds(sAdId string, putRequest *request.PutAd, form *multipart.Form, fnUpl
 }
 func deleteAdsAdId(sAdId string) response.Result {
 	serviceAds := service.NewAdService()
-	serviceImages := service.NewImageService()
-	serviceAdDetail := service.NewAdDetailService()
 	res := response.Result{}
 
 	adId, err := strconv.ParseUint(sAdId, 10, 64)
@@ -383,7 +409,7 @@ func deleteAdsAdId(sAdId string) response.Result {
 	}
 
 	tx := server.Db.Debug().Begin()
-	if err := serviceAds.Delete(adId, tx, serviceImages, serviceAdDetail); err != nil {
+	if err := serviceAds.Delete(adId, tx); err != nil {
 		tx.Rollback()
 		logger.Warning.Println(err)
 		res.Status = 500
@@ -397,7 +423,9 @@ func deleteAdsAdId(sAdId string) response.Result {
 	res.Data = nil
 	return res
 }
-func workWithPhoto(ad *storage.Ad, curImages []*storage.Image, propsFull []*response.PropertyFull, tx *gorm.DB, form *multipart.Form, serviceImages *service.ImageService, serviceAds *service.AdService, postForm *url.Values, fnUpload func(file *multipart.FileHeader, filePath string) error) error {
+func workWithPhoto(ad *storage.Ad, curImages []*storage.Image, propsFull []*response.PropFull, tx *gorm.DB, form *multipart.Form, postForm *url.Values, fnUpload func(file *multipart.FileHeader, filePath string) error) error {
+	serviceAds := service.NewAdService()
+	serviceImages := service.NewImageService()
 	sliceImageSIds := make([]string, 0)
 
 	// получить текущие фото
@@ -406,7 +434,7 @@ func workWithPhoto(ad *storage.Ad, curImages []*storage.Image, propsFull []*resp
 	}
 
 	for _, propFull := range propsFull {
-		if propFull.KindPropertyName != "photo" { // вид св-ва - photo
+		if propFull.KindPropName != "photo" { // вид св-ва - photo
 			continue
 		}
 

@@ -4,5 +4,5 @@ import "altair/storage"
 
 type СatFull struct {
 	*storage.Cat
-	PropertiesFull []*PropertyFull `json:"properties"`
+	PropsFull []*PropFull `json:"props"`
 }

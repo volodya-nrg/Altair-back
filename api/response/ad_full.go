@@ -4,6 +4,6 @@ import "altair/storage"
 
 type AdFull struct {
 	*storage.Ad
-	Images  []*storage.Image `json:"images"`
-	Details []*AdDetailExt   `json:"details"`
+	Images     []*storage.Image `json:"images"`
+	DetailsExt []*AdDetailExt   `json:"detailsExt"`
 }

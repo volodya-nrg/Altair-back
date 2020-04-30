@@ -12,8 +12,8 @@
     <script>
         var ALTAIR = {};
         ALTAIR.catsTree = {{.catsTree}};
-        ALTAIR.kindProperties = {{.kindProperties}};
-        ALTAIR.properties = {{.properties}};
+        ALTAIR.kindProps = {{.kindProps}};
+        ALTAIR.props = {{.props}};
     </script>
     <script src="/assets/js/index.js"></script>
 </head>
@@ -92,7 +92,7 @@
                             </div>
                             <div class="form__row">
                                 <div class="form__title">назначенные свойства</div>
-                                <div class="target_for_properties"></div>
+                                <div class="target_for_props"></div>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
@@ -151,7 +151,7 @@
                             </div>
                             <div class="form__row">
                                 <div class="form__title">назначенные свойства</div>
-                                <div class="target_for_properties"></div>
+                                <div class="target_for_props"></div>
                             </div>
                             <div class="form__row">
                                 <label>
@@ -295,6 +295,14 @@
                                 <div class="target_for_cats_tree" data-name="catId"></div>
                             </div>
                             <div class="form__row">
+                                <div class="form__title">лимит</div>
+                                <input type="number" name="limit" min="0" value="0"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">offset</div>
+                                <input type="number" name="offset" min="0" value="0"/>
+                            </div>
+                            <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
@@ -415,9 +423,9 @@
             <h3>свойства для категорий</h3>
             <div>
                 <div class="accordion">
-                    <h3>GET: /api/v1/properties</h3>
+                    <h3>GET: /api/v1/props</h3>
                     <div>
-                        <form class="form" action="/api/v1/properties" method="get">
+                        <form class="form" action="/api/v1/props" method="get">
                             <div class="form__row">
                                 <div class="form__title">id каталога</div>
                                 <input type="number" name="catId"/>
@@ -427,21 +435,21 @@
                             </div>
                         </form>
                     </div>
-                    <h3>GET: /api/v1/properties/:propertyId</h3>
+                    <h3>GET: /api/v1/props/:propId</h3>
                     <div>
-                        <form class="form" action="/api/v1/properties/:propertyId" method="get">
+                        <form class="form" action="/api/v1/props/:propId" method="get">
                             <div class="form__row">
                                 <div class="form__title">id свойства</div>
-                                <input type="number" name="propertyId"/>
+                                <input type="number" name="propId"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
                     </div>
-                    <h3>POST: /api/v1/properties</h3>
+                    <h3>POST: /api/v1/props</h3>
                     <div>
-                        <form class="form sx-reload" action="/api/v1/properties" method="post">
+                        <form class="form sx-reload" action="/api/v1/props" method="post">
                             <div class="form__row">
                                 <div class="form__title">заголовок *</div>
                                 <input type="text" name="title"/>
@@ -464,32 +472,32 @@
                             </div>
                             <div class="form__row">
                                 <div class="form__title">разновидность тега *</div>
-                                <div class="target_for_kind_properties" data-name="kindPropertyId"></div>
+                                <div class="target_for_kind_props" data-name="kindPropId"></div>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">значения для св-ва</div>
-                                <div class="target_for_values_properties"></div>
+                                <div class="target_for_values_props"></div>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
                     </div>
-                    <h3>PUT: /api/v1/properties/:propertyId</h3>
+                    <h3>PUT: /api/v1/props/:propId</h3>
                     <div>
-                        <form class="form form-put-get-properties" action="/api/v1/properties/:propertyId" method="get">
+                        <form class="form form-put-get-props" action="/api/v1/props/:propId" method="get">
                             <div class="form__row">
                                 <div class="form__title">id свойства</div>
-                                <input type="number" name="propertyId"/>
+                                <input type="number" name="propId"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
-                        <form class="form form-put-put-properties sx-reload0 hidden"
-                              action="/api/v1/properties/:propertyId"
+                        <form class="form form-put-put-props sx-reload hidden"
+                              action="/api/v1/props/:propId"
                               method="put">
-                            <input type="hidden" name="propertyId"/>
+                            <input type="hidden" name="propId"/>
                             <div class="form__row">
                                 <div class="form__title">заголовок *</div>
                                 <input type="text" name="title"/>
@@ -512,23 +520,23 @@
                             </div>
                             <div class="form__row">
                                 <div class="form__title">разновидность тега *</div>
-                                <div class="target_for_kind_properties" data-name="kindPropertyId"></div>
+                                <div class="target_for_kind_props" data-name="kindPropId"></div>
                             </div>
                             <div class="form__row">
                                 <div class="form__title">значения для св-ва</div>
-                                <div class="target_for_values_properties"></div>
+                                <div class="target_for_values_props"></div>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
                     </div>
-                    <h3>DELETE: /api/v1/properties/:propertyId</h3>
+                    <h3>DELETE: /api/v1/props/:propId</h3>
                     <div>
-                        <form class="form sx-reload" action="/api/v1/properties/:propertyId" method="delete">
+                        <form class="form sx-reload" action="/api/v1/props/:propId" method="delete">
                             <div class="form__row">
                                 <div class="form__title">id свойства</div>
-                                <input type="number" name="propertyId"/>
+                                <input type="number" name="propId"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
@@ -541,29 +549,29 @@
             <h3>разновидности типов св-в для категорий</h3>
             <div>
                 <div class="accordion">
-                    <h3>GET: /api/v1/kind_properties</h3>
+                    <h3>GET: /api/v1/kind_props</h3>
                     <div>
-                        <form class="form" action="/api/v1/kind_properties" method="get">
+                        <form class="form" action="/api/v1/kind_props" method="get">
                             <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
                     </div>
-                    <h3>GET: /api/v1/kind_properties/:kindPropertyId</h3>
+                    <h3>GET: /api/v1/kind_props/:kindPropId</h3>
                     <div>
-                        <form class="form" action="/api/v1/kind_properties/:kindPropertyId" method="get">
+                        <form class="form" action="/api/v1/kind_props/:kindPropId" method="get">
                             <div class="form__row">
-                                <div class="form__title">kindPropertyId</div>
-                                <input type="number" name="kindPropertyId"/>
+                                <div class="form__title">kindPropId</div>
+                                <input type="number" name="kindPropId"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
                     </div>
-                    <h3>POST: /api/v1/kind_properties</h3>
+                    <h3>POST: /api/v1/kind_props</h3>
                     <div>
-                        <form class="form sx-reload" action="/api/v1/kind_properties" method="post">
+                        <form class="form sx-reload" action="/api/v1/kind_props" method="post">
                             <div class="form__row">
                                 <div class="form__title">название</div>
                                 <input type="text" name="name"/>
@@ -573,21 +581,21 @@
                             </div>
                         </form>
                     </div>
-                    <h3>PUT: /api/v1/kind_properties/:kindPropertyId</h3>
+                    <h3>PUT: /api/v1/kind_props/:kindPropId</h3>
                     <div>
-                        <form class="form form-put-get-kind_properties" action="/api/v1/kind_properties/:kindPropertyId"
+                        <form class="form form-put-get-kind_props" action="/api/v1/kind_props/:kindPropId"
                               method="get">
                             <div class="form__row">
                                 <div class="form__title">id</div>
-                                <input type="number" name="kindPropertyId"/>
+                                <input type="number" name="kindPropId"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
                             </div>
                         </form>
-                        <form class="form form-put-put-kind_properties sx-reload hidden"
-                              action="/api/v1/kind_properties/:kindPropertyId" method="put">
-                            <input type="hidden" name="kindPropertyId"/>
+                        <form class="form form-put-put-kind_props sx-reload hidden"
+                              action="/api/v1/kind_props/:kindPropId" method="put">
+                            <input type="hidden" name="kindPropId"/>
                             <div class="form__row">
                                 <div class="form__title">название *</div>
                                 <input type="text" name="name"/>
@@ -597,12 +605,42 @@
                             </div>
                         </form>
                     </div>
-                    <h3>DELETE: /api/v1/kind_properties/:kindPropertyId</h3>
+                    <h3>DELETE: /api/v1/kind_props/:kindPropId</h3>
                     <div>
-                        <form class="form sx-reload" action="/api/v1/kind_properties/:kindPropertyId" method="delete">
+                        <form class="form sx-reload" action="/api/v1/kind_props/:kindPropId" method="delete">
                             <div class="form__row">
                                 <div class="form__title">id</div>
-                                <input type="number" name="kindPropertyId"/>
+                                <input type="number" name="kindPropId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <h3>страницы</h3>
+            <div>
+                <div class="accordion">
+                    <h3>GET: /api/v1/pages/ad/:adId</h3>
+                    <div>
+                        <form class="form" action="/api/v1/pages/ad/:adId" method="get">
+                            <div class="form__row">
+                                <div class="form__title">id объявления *</div>
+                                <input type="number" name="adId"/>
+                            </div>
+                            <div class="form__row">
+                                <input type="submit"/>
+                            </div>
+                        </form>
+                    </div>
+                    <h3>GET: /api/v1/pages/main</h3>
+                    <div>
+                        <form class="form" action="/api/v1/pages/main" method="get">
+                            <div class="form__row">
+                                <div class="form__title">лимит</div>
+                                <input type="number" name="limit" min="0" value="4"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>
@@ -628,6 +666,14 @@
                                      data-name="catId"
                                      data-with_props_only_filtered="true"
                                      data-without_required="true"></div>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">лимит</div>
+                                <input type="number" name="limit" min="0" value="0"/>
+                            </div>
+                            <div class="form__row">
+                                <div class="form__title">offset</div>
+                                <input type="number" name="offset" min="0" value="0"/>
                             </div>
                             <div class="form__row">
                                 <input type="submit"/>

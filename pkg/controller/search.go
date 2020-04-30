@@ -13,14 +13,14 @@ import (
 )
 
 func GetSearchAds(c *gin.Context) {
-	getRequest := request.GetSearchAds{}
+	req := request.GetSearchAds{}
 
-	if err := c.ShouldBind(&getRequest); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(400, err.Error())
 		return
 	}
 
-	res := getSearchAds(getRequest.Query, getRequest.CatId, c.Request.Form)
+	res := getSearchAds(req.Query, req.CatId, req.Limit, req.Offset, c.Request.Form)
 	if res.Err != nil {
 		res.Data = res.Err.Error()
 	}
@@ -29,12 +29,8 @@ func GetSearchAds(c *gin.Context) {
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func getSearchAds(querySrc string, catId uint64, mGetParams url.Values) response.Result {
+func getSearchAds(querySrc string, catId uint64, limit uint64, offset uint64, mGetParams url.Values) response.Result {
 	serviceAds := service.NewAdService()
-	serviceImages := service.NewImageService()
-	serviceAdDetails := service.NewAdDetailService()
-	serviceProperties := service.NewPropertyService()
-	serviceValuesProperties := service.NewValuesPropertyService()
 	res := response.Result{}
 	query := strings.TrimSpace(querySrc)
 
@@ -45,7 +41,7 @@ func getSearchAds(querySrc string, catId uint64, mGetParams url.Values) response
 		return res
 	}
 
-	pAdsFull, err := serviceAds.GetAdsFullBySearchTitle(query, catId, mGetParams, serviceImages, serviceAdDetails, serviceProperties, serviceValuesProperties)
+	pAdsFull, err := serviceAds.GetAdsFullBySearchTitle(query, catId, limit, offset, mGetParams)
 	if err != nil {
 		res.Status = 500
 		res.Err = err

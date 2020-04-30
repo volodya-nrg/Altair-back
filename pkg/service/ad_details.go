@@ -27,6 +27,16 @@ func (ads AdDetailService) GetByAdId(adId uint64) ([]*storage.AdDetail, error) {
 
 	return list, nil
 }
+func (ads AdDetailService) GetByAdIds(adId []uint64) ([]*storage.AdDetail, error) {
+	list := make([]*storage.AdDetail, 0)
+	err := server.Db.Debug().Where("ad_id IN (?)", adId).Find(&list).Error
+
+	if err != nil {
+		return list, err
+	}
+
+	return list, nil
+}
 func (ads AdDetailService) GetDetailsExtByAdIds(adIds []uint64) ([]*response.AdDetailExt, error) {
 	list := make([]*response.AdDetailExt, 0)
 
@@ -35,10 +45,17 @@ func (ads AdDetailService) GetDetailsExtByAdIds(adIds []uint64) ([]*response.AdD
 	}
 
 	query := `
-		SELECT AD.ad_id, AD.property_id, AD.value, P.name AS property_name,
-			(SELECT name FROM kind_properties WHERE kind_property_id = P.kind_property_id) AS kind_property_name
+		SELECT  AD.ad_id, 
+				AD.prop_id, 
+				AD.value, 
+				P.name AS prop_name,
+				(SELECT name FROM kind_props WHERE kind_prop_id = P.kind_prop_id) AS kind_prop_name,
+				(SELECT title FROM value_props 
+					WHERE P.kind_prop_id IN (
+						SELECT kind_prop_id FROM kind_props WHERE name="radio" OR name="select" 
+					) AND value_id = AD.value AND prop_id = AD.prop_id) AS value_name
 			FROM ad_details AD
-				LEFT JOIN properties P ON P.property_id = AD.property_id
+				LEFT JOIN props P ON P.prop_id = AD.prop_id
 			WHERE AD.ad_id`
 
 	if len(adIds) == 1 {
@@ -95,16 +112,16 @@ func (ads AdDetailService) DeleteAllByAdId(adId uint64, tx *gorm.DB) error {
 	return nil
 }
 func (ads AdDetailService) BuildDataFromRequestFormAndCatProps(
-	adId uint64, postForm *url.Values, propsFull []*response.PropertyFull) ([]*storage.AdDetail, error) {
+	adId uint64, postForm *url.Values, propsFull []*response.PropFull) ([]*storage.AdDetail, error) {
 	adDetails := make([]*storage.AdDetail, 0)
 
 	for _, prop := range propsFull {
 		sValue := strings.TrimSpace(postForm.Get(prop.Name))
-		kind := prop.KindPropertyName
+		kind := prop.KindPropName
 
 		// проверим на обязательное св-во
 		if prop.IsRequire && sValue == "" {
-			return adDetails, fmt.Errorf("property (%s) is require", kind)
+			return adDetails, fmt.Errorf("prop (%s) is require", kind)
 		}
 		if sValue == "" {
 			continue
@@ -125,13 +142,13 @@ func (ads AdDetailService) BuildDataFromRequestFormAndCatProps(
 			}
 
 			if !has {
-				return adDetails, fmt.Errorf("not found valueId(%d) on property(%s)", iValue, kind)
+				return adDetails, fmt.Errorf("not found valueId(%d) on prop(%s)", iValue, kind)
 			}
 		}
 
 		adDetail := new(storage.AdDetail)
 		adDetail.AdId = adId
-		adDetail.PropertyId = prop.PropertyId
+		adDetail.PropId = prop.PropId
 		adDetail.Value = sValue
 
 		adDetails = append(adDetails, adDetail)

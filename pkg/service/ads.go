@@ -19,156 +19,124 @@ func NewAdService() *AdService {
 
 type AdService struct{}
 
-func (as AdService) GetAds(isOrderDesc bool) ([]*storage.Ad, error) {
-	pAds := make([]*storage.Ad, 0)
-	order := "asc"
+func (as AdService) GetAds(order string) ([]*storage.Ad, error) {
+	ads := make([]*storage.Ad, 0)
+	query := server.Db.Debug()
 
-	if isOrderDesc {
-		order = "desc"
+	if order != "" {
+		query = query.Order(order)
 	}
 
-	err := server.Db.Debug().Order("created_at " + order).Find(&pAds).Error
+	err := query.Find(&ads).Error
 
-	return pAds, err
+	return ads, err
 }
-func (as AdService) GetAdsFull(catIds []uint64, checkCountCatIds bool, isOrderDesc bool, serviceImages *ImageService, serviceAdDetails *AdDetailService) ([]*response.AdFull, error) {
-	pAds := make([]*storage.Ad, 0)
-	pAdsFull := make([]*response.AdFull, 0)
+func (as AdService) GetAdsFull(catIds []uint64, checkCountCatIds bool, order string, limit uint64, offset uint64) ([]*response.AdFull, error) {
+	ads := make([]*storage.Ad, 0)
+	adsFull := make([]*response.AdFull, 0)
 	var err error
-	order := "asc"
 
-	if isOrderDesc {
-		order = "desc"
-	}
-
-	query := server.Db.Debug().Order("created_at " + order)
+	query := server.Db.Debug().Limit(limit).Offset(offset).Order(order)
 
 	if checkCountCatIds && len(catIds) < 1 {
-		return pAdsFull, errEmptyListCatIds
+		return adsFull, errEmptyListCatIds
 	}
 
 	if len(catIds) > 0 {
 		query = query.Where("cat_id IN (?)", catIds)
 	}
 
-	if err := query.Find(&pAds).Error; err != nil {
-		return pAdsFull, err
+	if err := query.Find(&ads).Error; err != nil {
+		return adsFull, err
 	}
 
-	if len(pAds) < 1 {
-		return pAdsFull, nil
+	if len(ads) < 1 {
+		return adsFull, nil
 	}
 
-	pAdsFull, err = as.buildAdsFullFromAds(pAds, serviceImages, serviceAdDetails)
+	adsFull, err = buildAdsFullFromAds(ads)
 	if err != nil {
-		return pAdsFull, err
+		return adsFull, err
 	}
 
-	return pAdsFull, nil
+	return adsFull, nil
 }
 func (as AdService) GetAdById(adId uint64) (*storage.Ad, error) {
-	pAd := new(storage.Ad)
-	err := server.Db.Debug().First(pAd, adId).Error
+	ad := new(storage.Ad)
+	err := server.Db.Debug().First(ad, adId).Error
 
-	return pAd, err
+	return ad, err
 }
-func (as AdService) GetAdFullById(adId uint64, serviceImages *ImageService, serviceAdDetails *AdDetailService) (*response.AdFull, error) {
-	pAd := new(storage.Ad)
-	pAdFull := new(response.AdFull)
+func (as AdService) GetLastAdsByOneCat(limit uint64) ([]*response.AdFull, error) {
+	ads := make([]*storage.Ad, 0)
+	adsFull := make([]*response.AdFull, 0)
+	var err error
+	query := `
+		SELECT * 
+			FROM ads
+			WHERE cat_id = (SELECT cat_id FROM ads ORDER BY created_at DESC LIMIT 1)
+			LIMIT ?`
 
-	if err := server.Db.Debug().First(pAd, adId).Error; err != nil {
-		return pAdFull, err
+	if err := server.Db.Debug().Raw(query, limit).Scan(&ads).Error; err != nil {
+		return adsFull, err
 	}
 
-	pImages, err := serviceImages.GetImagesByElIdsAndOpt([]uint64{pAd.AdId}, "ad")
+	if len(ads) < 1 {
+		return adsFull, nil
+	}
+
+	adsFull, err = buildAdsFullFromAds(ads)
 	if err != nil {
-		return pAdFull, err
+		return adsFull, err
 	}
 
-	pAdDetailsExt, err := serviceAdDetails.GetDetailsExtByAdIds([]uint64{adId})
-	if err != nil {
-		return pAdFull, err
-	}
-
-	pAdFull.Ad = pAd
-	pAdFull.Images = pImages
-	pAdFull.Details = pAdDetailsExt
-
-	return pAdFull, nil
+	return adsFull, err
 }
-func (as AdService) GetAdFullByIds(adIds []uint64, isOrderDesc bool, serviceImages *ImageService, serviceAdDetails *AdDetailService) ([]*response.AdFull, error) {
-	pAds := make([]*storage.Ad, 0)
-	pAdFulls := make([]*response.AdFull, 0)
-	order := "asc"
+func (as AdService) GetAdFullById(adId uint64) (*response.AdFull, error) {
+	ad := new(storage.Ad)
+	adFull := new(response.AdFull)
 
-	if len(adIds) < 1 {
-		return pAdFulls, nil
+	if err := server.Db.Debug().First(ad, adId).Error; err != nil {
+		return adFull, err
 	}
 
-	if isOrderDesc {
-		order = "desc"
-	}
-
-	if err := server.Db.Debug().Order("created_at "+order).Find(&pAds, adIds).Error; err != nil {
-		return pAdFulls, err
-	}
-
-	pImages, err := serviceImages.GetImagesByElIdsAndOpt(adIds, "ad")
+	adsFull, err := buildAdsFullFromAds([]*storage.Ad{ad})
 	if err != nil {
-		return pAdFulls, err
+		return adFull, err
+	}
+	if len(adsFull) < 1 {
+		return adFull, nil
 	}
 
-	pAdDetailsExt, err := serviceAdDetails.GetDetailsExtByAdIds(adIds)
-	if err != nil {
-		return pAdFulls, err
-	}
-
-	// теперь три эти составляющие (ad, images, details) необходимо объединить
-	for _, ad := range pAds {
-		pAdFull := new(response.AdFull)
-		pAdFull.Ad = ad
-
-		for _, image := range pImages {
-			if image.ElId == ad.AdId {
-				pAdFull.Images = append(pAdFull.Images, image)
-			}
-		}
-		for _, detailsExt := range pAdDetailsExt {
-			if detailsExt.AdId == ad.AdId {
-				pAdFull.Details = append(pAdFull.Details, detailsExt)
-			}
-		}
-
-		pAdFulls = append(pAdFulls, pAdFull)
-	}
-
-	return pAdFulls, nil
+	return adsFull[0], nil
 }
-func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, mGetParams url.Values, serviceImages *ImageService, serviceAdDetails *AdDetailService, serviceProperties *PropertyService, valuesPropertyService *ValuesPropertyService) ([]*response.AdFull, error) {
-	pAdsFull := make([]*response.AdFull, 0)
+func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, limit uint64, offset uint64, mGetParams url.Values) ([]*response.AdFull, error) {
+	serviceProps := NewPropService()
+	ads := make([]*storage.Ad, 0)
+	adsFull := make([]*response.AdFull, 0)
 
 	// map[_:[1585741609119] catId:[53] color:[25] ferma:[asd] q:[title]]
 	if catId < 1 {
-		return as.getAdsFullByTitleAndCatId(title, 0, serviceImages, serviceAdDetails)
+		return getAdsFullByTitleAndCatId(title, limit, offset, 0)
 	}
 
 	// возьмем у данного каталога его св-ва со значениями
-	listPPropertiesFull, err := serviceProperties.GetPropertiesFullByCatId(catId, true, valuesPropertyService)
+	listPPropsFull, err := serviceProps.GetPropsFullByCatId(catId, true)
 	if err != nil {
-		return pAdsFull, err
+		return adsFull, err
 	}
 
 	// посмотрим какие св-ва пришли из вне
-	mPropertyAndValue := make(map[uint64]uint64, 0) // ключ - propertyId, значение - valueId
-	for _, prop := range listPPropertiesFull {
+	mPropAndValue := make(map[uint64]uint64, 0) // ключ - propId, значение - valueId
+	for _, prop := range listPPropsFull {
 		if sVal, ok := mGetParams[prop.Name]; ok && len(sVal) > 0 {
 			sVal := sVal[0]
 			// если это какой либо список, то необходимо проверить на соответствие значений св-ва (их валидность)
-			if prop.KindPropertyName == "radio" || prop.KindPropertyName == "select" {
+			if prop.KindPropName == "radio" || prop.KindPropName == "select" {
 				if iVal, err := strconv.ParseUint(sVal, 10, 64); err == nil {
 					for _, val := range prop.Values {
 						if val.ValueId == iVal {
-							mPropertyAndValue[prop.PropertyId] = iVal
+							mPropAndValue[prop.PropId] = iVal
 							break
 						}
 					}
@@ -177,25 +145,23 @@ func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, mGetPara
 		}
 	}
 
-	if len(mPropertyAndValue) < 1 {
-		return as.getAdsFullByTitleAndCatId(title, catId, serviceImages, serviceAdDetails)
+	if len(mPropAndValue) < 1 {
+		return getAdsFullByTitleAndCatId(title, limit, offset, catId)
 	}
 
 	slicePropValFilter := make([]string, 0)
-	for propertyId, valueId := range mPropertyAndValue {
-		str := fmt.Sprintf("VP.property_id = %d AND VP.value_id = %d", propertyId, valueId)
+	for propId, valueId := range mPropAndValue {
+		str := fmt.Sprintf("VP.prop_id = %d AND VP.value_id = %d", propId, valueId)
 		slicePropValFilter = append(slicePropValFilter, str)
 	}
 
-	pAds := make([]*storage.Ad, 0)
-	adIds := make([]uint64, 0)
 	queryDop := strings.Join(slicePropValFilter[:], " OR ")
 	query := `
 		SELECT A.*
 			FROM ads A
 				LEFT JOIN cats C ON C.cat_id = A.cat_id
-				LEFT JOIN cats_properties CP ON CP.cat_id = C.cat_id
-				LEFT JOIN value_properties VP ON VP.property_id = CP.property_id
+				LEFT JOIN cats_props CP ON CP.cat_id = C.cat_id
+				LEFT JOIN value_props VP ON VP.prop_id = CP.prop_id
 			WHERE 
 				C.cat_id = ? AND
 				A.title LIKE ? AND
@@ -203,15 +169,16 @@ func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, mGetPara
 			ORDER BY A.created_at DESC
 			LIMIT 100`
 	// LIKE "ABC%" = "ABC[ниже]" < KEY < "ABC[выше]". LIKE "%ABC" не может быть оптимизирован для исп-ия индексов
-	if err := server.Db.Debug().Raw(query, catId, title+"%").Scan(&pAds).Error; err != nil {
-		return pAdsFull, err
+	if err := server.Db.Debug().Raw(query, catId, "%"+title+"%").Scan(&ads).Error; err != nil {
+		return adsFull, err
 	}
 
-	for _, pAd := range pAds {
-		adIds = append(adIds, pAd.AdId)
+	adsFull, err = buildAdsFullFromAds(ads)
+	if err != nil {
+		return adsFull, err
 	}
 
-	return as.GetAdFullByIds(adIds, true, serviceImages, serviceAdDetails)
+	return adsFull, nil
 }
 func (as AdService) Create(ad *storage.Ad, tx *gorm.DB) error {
 	uniqStr := helpers.RandStringRunes(5)
@@ -245,12 +212,15 @@ func (as AdService) Update(ad *storage.Ad, tx *gorm.DB) error {
 
 	return err
 }
-func (as AdService) Delete(adId uint64, tx *gorm.DB, serviceImages *ImageService, serviceAdDetail *AdDetailService) error {
+func (as AdService) Delete(adId uint64, tx *gorm.DB) error {
+	serviceImages := NewImageService()
+	serviceAdDetail := NewAdDetailService()
+
 	if tx == nil {
 		tx = server.Db.Debug()
 	}
 
-	if err := tx.Where("ad_id = ?", adId).Delete(storage.Ad{}).Error; err != nil {
+	if err := tx.Delete(storage.Ad{}, "ad_id = ?", adId).Error; err != nil {
 		return err
 	}
 
@@ -273,63 +243,84 @@ func (as AdService) Delete(adId uint64, tx *gorm.DB, serviceImages *ImageService
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func (as AdService) buildAdsFullFromAds(pAds []*storage.Ad, serviceImages *ImageService, serviceAdDetails *AdDetailService) ([]*response.AdFull, error) {
-	pAdsFull := make([]*response.AdFull, 0)
-	adIds := make([]uint64, 0)
+func getAdsFullByTitleAndCatId(title string, limitSrc uint64, offsetSrc uint64, catId uint64) ([]*response.AdFull, error) {
+	ads := make([]*storage.Ad, 0)
+	adsFull := make([]*response.AdFull, 0)
+	query := server.Db.Debug().Where("title LIKE ?", "%"+title+"%")
+	var err error
+	var limit uint64 = 10
+	var offset uint64 = 0
 
-	if len(pAds) < 1 {
-		return pAdsFull, nil
+	if limitSrc > 0 && limitSrc < 10 {
+		limit = limitSrc
+	}
+	if offsetSrc > 0 {
+		offset = offsetSrc
 	}
 
-	for _, ad := range pAds {
-		adIds = append(adIds, ad.AdId)
-		pAdFull := new(response.AdFull)
-		pAdFull.Ad = ad
-		pAdsFull = append(pAdsFull, pAdFull)
-	}
+	query = query.Limit(limit)
 
-	pImages, err := serviceImages.GetImagesByElIdsAndOpt(adIds, "ad")
-	if err != nil {
-		return pAdsFull, err
+	if offset > 0 {
+		query = query.Offset(offset)
 	}
-
-	pAdDetails, err := serviceAdDetails.GetDetailsExtByAdIds(adIds)
-	if err != nil {
-		return pAdsFull, err
-	}
-
-	for _, ad := range pAdsFull {
-		for _, image := range pImages {
-			if image.ElId == ad.AdId {
-				ad.Images = append(ad.Images, image)
-			}
-		}
-		for _, detail := range pAdDetails {
-			if detail.AdId == ad.AdId {
-				ad.Details = append(ad.Details, detail)
-			}
-		}
-	}
-
-	return pAdsFull, nil
-}
-func (as AdService) getAdsFullByTitleAndCatId(title string, catId uint64, serviceImages *ImageService, serviceAdDetails *AdDetailService) ([]*response.AdFull, error) {
-	pAds := make([]*storage.Ad, 0)
-	pAdsFull := make([]*response.AdFull, 0)
-	adIds := make([]uint64, 0)
-	query := server.Db.Debug().Where("title LIKE ?", title+"%")
 
 	if catId > 0 {
 		query = query.Where("cat_id = ?", catId)
 	}
 
-	if err := query.Find(&pAds).Error; err != nil {
-		return pAdsFull, err
+	if err := query.Find(&ads).Error; err != nil {
+		return adsFull, err
 	}
 
-	for _, ad := range pAds {
+	adsFull, err = buildAdsFullFromAds(ads)
+	if err != nil {
+		return adsFull, err
+	}
+
+	return adsFull, nil
+}
+
+func buildAdsFullFromAds(ads []*storage.Ad) ([]*response.AdFull, error) {
+	serviceImages := NewImageService()
+	serviceAdDetails := NewAdDetailService()
+	adsFull := make([]*response.AdFull, 0)
+	adIds := make([]uint64, 0)
+	catIds := make([]uint64, 0)
+
+	if len(ads) < 1 {
+		return adsFull, nil
+	}
+
+	for _, ad := range ads {
 		adIds = append(adIds, ad.AdId)
+		adFull := new(response.AdFull)
+		adFull.Ad = ad
+		adsFull = append(adsFull, adFull)
+		catIds = append(catIds, ad.CatId)
 	}
 
-	return as.GetAdFullByIds(adIds, true, serviceImages, serviceAdDetails)
+	images, err := serviceImages.GetImagesByElIdsAndOpt(adIds, "ad")
+	if err != nil {
+		return adsFull, err
+	}
+
+	adDetailsExt, err := serviceAdDetails.GetDetailsExtByAdIds(adIds)
+	if err != nil {
+		return adsFull, err
+	}
+
+	for _, adFull := range adsFull {
+		for _, image := range images {
+			if image.ElId == adFull.AdId {
+				adFull.Images = append(adFull.Images, image)
+			}
+		}
+		for _, detailExt := range adDetailsExt {
+			if detailExt.AdId == adFull.AdId {
+				adFull.DetailsExt = append(adFull.DetailsExt, detailExt)
+			}
+		}
+	}
+
+	return adsFull, nil
 }

@@ -12,8 +12,8 @@ import (
 	"strings"
 )
 
-func GetKindProperties(c *gin.Context) {
-	res := getKindProperties()
+func GetKindProps(c *gin.Context) {
+	res := getKindProps()
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -21,8 +21,8 @@ func GetKindProperties(c *gin.Context) {
 
 	c.JSON(res.Status, res.Data)
 }
-func GetKindPropertiesKindPropertyId(c *gin.Context) {
-	res := getKindPropertiesKindPropertyId(c.Param("kindPropertyId"))
+func GetKindPropsKindPropId(c *gin.Context) {
+	res := getKindPropsKindPropId(c.Param("kindPropId"))
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -30,8 +30,8 @@ func GetKindPropertiesKindPropertyId(c *gin.Context) {
 
 	c.JSON(res.Status, res.Data)
 }
-func PostKindProperties(c *gin.Context) {
-	pPostRequest := new(request.PostKindProperty)
+func PostKindProps(c *gin.Context) {
+	pPostRequest := new(request.PostKindProp)
 
 	if err := c.ShouldBind(pPostRequest); err != nil {
 		logger.Warning.Println(err)
@@ -39,7 +39,7 @@ func PostKindProperties(c *gin.Context) {
 		return
 	}
 
-	res := postKindProperties(pPostRequest)
+	res := postKindProps(pPostRequest)
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -47,8 +47,8 @@ func PostKindProperties(c *gin.Context) {
 
 	c.JSON(res.Status, res.Data)
 }
-func PutKindPropertiesKindPropertyId(c *gin.Context) {
-	pPutRequest := new(request.PutKindProperty)
+func PutKindPropsKindPropId(c *gin.Context) {
+	pPutRequest := new(request.PutKindProp)
 
 	if err := c.ShouldBind(pPutRequest); err != nil {
 		logger.Warning.Println(err)
@@ -56,7 +56,7 @@ func PutKindPropertiesKindPropertyId(c *gin.Context) {
 		return
 	}
 
-	res := putKindPropertiesKindPropertyId(c.Param("kindPropertyId"), pPutRequest)
+	res := putKindPropsKindPropId(c.Param("kindPropId"), pPutRequest)
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -64,8 +64,8 @@ func PutKindPropertiesKindPropertyId(c *gin.Context) {
 
 	c.JSON(res.Status, res.Data)
 }
-func DeleteKindPropertiesKindPropertyId(c *gin.Context) {
-	res := deleteKindPropertiesKindPropertyId(c.Param("kindPropertyId"))
+func DeleteKindPropsKindPropId(c *gin.Context) {
+	res := deleteKindPropsKindPropId(c.Param("kindPropId"))
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -75,11 +75,11 @@ func DeleteKindPropertiesKindPropertyId(c *gin.Context) {
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func getKindProperties() response.Result {
-	serviceKindProperties := service.NewKindPropertyService()
+func getKindProps() response.Result {
+	serviceKindProps := service.NewKindPropService()
 	res := response.Result{}
 
-	pKindProperties, err := serviceKindProperties.GetKindProperties("kind_property_id desc")
+	pKindProps, err := serviceKindProps.GetKindProps("kind_prop_id desc")
 	if err != nil {
 		res.Status = 500
 		res.Err = err
@@ -88,21 +88,21 @@ func getKindProperties() response.Result {
 
 	res.Status = 200
 	res.Err = nil
-	res.Data = pKindProperties
+	res.Data = pKindProps
 	return res
 }
-func getKindPropertiesKindPropertyId(sKindPropertyId string) response.Result {
-	serviceKindProperties := service.NewKindPropertyService()
+func getKindPropsKindPropId(sKindPropId string) response.Result {
+	serviceKindProps := service.NewKindPropService()
 	res := response.Result{}
 
-	kindPropertyId, err := strconv.ParseUint(sKindPropertyId, 10, 64)
+	kindPropId, err := strconv.ParseUint(sKindPropId, 10, 64)
 	if err != nil {
 		res.Status = 400
 		res.Err = err
 		return res
 	}
 
-	pKindProperty, err := serviceKindProperties.GetKindPropertyById(kindPropertyId)
+	pKindProp, err := serviceKindProps.GetKindPropById(kindPropId)
 	if gorm.IsRecordNotFoundError(err) {
 		res.Status = 404
 		res.Err = err
@@ -116,17 +116,17 @@ func getKindPropertiesKindPropertyId(sKindPropertyId string) response.Result {
 
 	res.Status = 200
 	res.Err = nil
-	res.Data = pKindProperty
+	res.Data = pKindProp
 	return res
 }
-func postKindProperties(pPostRequest *request.PostKindProperty) response.Result {
-	serviceKindProperties := service.NewKindPropertyService()
+func postKindProps(pPostRequest *request.PostKindProp) response.Result {
+	serviceKindProps := service.NewKindPropService()
 	res := response.Result{}
-	pKindProperty := new(storage.KindProperty)
+	pKindProp := new(storage.KindProp)
 
-	pKindProperty.Name = pPostRequest.Name
+	pKindProp.Name = pPostRequest.Name
 
-	if err := serviceKindProperties.Create(pKindProperty, nil); err != nil {
+	if err := serviceKindProps.Create(pKindProp, nil); err != nil {
 		res.Status = 400
 		res.Err = err
 		return res
@@ -134,21 +134,21 @@ func postKindProperties(pPostRequest *request.PostKindProperty) response.Result 
 
 	res.Status = 201
 	res.Err = nil
-	res.Data = pKindProperty
+	res.Data = pKindProp
 	return res
 }
-func putKindPropertiesKindPropertyId(sKindPropertyId string, putRequest *request.PutKindProperty) response.Result {
-	serviceKindProperties := service.NewKindPropertyService()
+func putKindPropsKindPropId(sKindPropId string, putRequest *request.PutKindProp) response.Result {
+	serviceKindProps := service.NewKindPropService()
 	res := response.Result{}
 
-	kindPropertyId, err := strconv.ParseUint(sKindPropertyId, 10, 64)
+	kindPropId, err := strconv.ParseUint(sKindPropId, 10, 64)
 	if err != nil {
 		res.Status = 500
 		res.Err = err
 		return res
 	}
 
-	pKindProperty, err := serviceKindProperties.GetKindPropertyById(kindPropertyId)
+	pKindProp, err := serviceKindProps.GetKindPropById(kindPropId)
 	if gorm.IsRecordNotFoundError(err) {
 		res.Status = 404
 		res.Err = err
@@ -160,9 +160,9 @@ func putKindPropertiesKindPropertyId(sKindPropertyId string, putRequest *request
 		return res
 	}
 
-	pKindProperty.Name = strings.TrimSpace(putRequest.Name)
+	pKindProp.Name = strings.TrimSpace(putRequest.Name)
 
-	if err = serviceKindProperties.Update(pKindProperty, nil); err != nil {
+	if err = serviceKindProps.Update(pKindProp, nil); err != nil {
 		res.Status = 400
 		res.Err = err
 		return res
@@ -170,21 +170,21 @@ func putKindPropertiesKindPropertyId(sKindPropertyId string, putRequest *request
 
 	res.Status = 200
 	res.Err = nil
-	res.Data = pKindProperty
+	res.Data = pKindProp
 	return res
 }
-func deleteKindPropertiesKindPropertyId(sKindPropertyId string) response.Result {
-	serviceKindProperties := service.NewKindPropertyService()
+func deleteKindPropsKindPropId(sKindPropId string) response.Result {
+	serviceKindProps := service.NewKindPropService()
 	res := response.Result{}
 
-	kindPropertyId, err := strconv.ParseUint(sKindPropertyId, 10, 64)
+	kindPropId, err := strconv.ParseUint(sKindPropId, 10, 64)
 	if err != nil {
 		res.Status = 400
 		res.Err = err
 		return res
 	}
 
-	if err := serviceKindProperties.Delete(kindPropertyId, nil); err != nil {
+	if err := serviceKindProps.Delete(kindPropId, nil); err != nil {
 		res.Status = 500
 		res.Err = err
 		return res

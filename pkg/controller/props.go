@@ -20,8 +20,8 @@ var (
 	errAlreadyHasReservedName = errors.New("already name exists")
 )
 
-func GetProperties(c *gin.Context) {
-	res := getProperties(c.DefaultQuery("catId", ""))
+func GetProps(c *gin.Context) {
+	res := getProps(c.DefaultQuery("catId", ""))
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -29,8 +29,8 @@ func GetProperties(c *gin.Context) {
 
 	c.JSON(res.Status, res.Data)
 }
-func GetPropertiesPropertyId(c *gin.Context) {
-	res := getPropertiesPropertyId(c.Param("propertyId"))
+func GetPropsPropId(c *gin.Context) {
+	res := getPropsPropId(c.Param("propId"))
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -38,8 +38,8 @@ func GetPropertiesPropertyId(c *gin.Context) {
 
 	c.JSON(res.Status, res.Data)
 }
-func PostProperties(c *gin.Context) {
-	postRequest := new(request.PostProperty)
+func PostProps(c *gin.Context) {
+	postRequest := new(request.PostProp)
 
 	if err := c.ShouldBind(postRequest); err != nil {
 		logger.Warning.Println(err)
@@ -53,7 +53,7 @@ func PostProperties(c *gin.Context) {
 	mValueTitle := c.PostFormMap("valueTitle")
 	mValuePos := c.PostFormMap("valuePos")
 
-	res := postProperties(postRequest, mValueId, mValueTitle, mValuePos)
+	res := postProps(postRequest, mValueId, mValueTitle, mValuePos)
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -61,8 +61,8 @@ func PostProperties(c *gin.Context) {
 
 	c.JSON(res.Status, res.Data)
 }
-func PutPropertiesPropertyId(c *gin.Context) {
-	putRequest := new(request.PutProperty)
+func PutPropsPropId(c *gin.Context) {
+	putRequest := new(request.PutProp)
 
 	if err := c.ShouldBind(putRequest); err != nil {
 		logger.Warning.Println(err)
@@ -70,12 +70,12 @@ func PutPropertiesPropertyId(c *gin.Context) {
 		return
 	}
 
-	propertyId := c.Param("propertyId")
+	propId := c.Param("propId")
 	mValueId := c.PostFormMap("valueId")
 	mValueTitle := c.PostFormMap("valueTitle")
 	mValuePos := c.PostFormMap("valuePos")
 
-	res := putPropertiesPropertyId(propertyId, putRequest, mValueId, mValueTitle, mValuePos)
+	res := putPropsPropId(propId, putRequest, mValueId, mValueTitle, mValuePos)
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -83,8 +83,8 @@ func PutPropertiesPropertyId(c *gin.Context) {
 
 	c.JSON(res.Status, res.Data)
 }
-func DeletePropertiesPropertyId(c *gin.Context) {
-	res := deletePropertiesPropertyId(c.Param("propertyId"))
+func DeletePropsPropId(c *gin.Context) {
+	res := deletePropsPropId(c.Param("propId"))
 	if res.Err != nil {
 		logger.Warning.Println(res.Err.Error())
 		res.Data = res.Err.Error()
@@ -94,9 +94,8 @@ func DeletePropertiesPropertyId(c *gin.Context) {
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func getProperties(catIdSrc string) response.Result {
-	serviceProperties := service.NewPropertyService()
-	serviceValuesProperty := service.NewValuesPropertyService()
+func getProps(catIdSrc string) response.Result {
+	serviceProps := service.NewPropService()
 	res := response.Result{}
 
 	if catIdSrc == "" {
@@ -110,8 +109,9 @@ func getProperties(catIdSrc string) response.Result {
 		res.Err = err
 		return res
 	}
+	// вытаскивать propFull слишком накладно (1.4мб)
 	if catId > 0 {
-		propertiesFull, err := serviceProperties.GetPropertiesFullByCatId(catId, false, serviceValuesProperty)
+		propsFull, err := serviceProps.GetPropsFullByCatId(catId, false)
 		if err != nil {
 			logger.Warning.Println(err)
 			res.Status = 500
@@ -121,11 +121,11 @@ func getProperties(catIdSrc string) response.Result {
 
 		res.Status = 200
 		res.Err = nil
-		res.Data = propertiesFull
+		res.Data = propsFull
 		return res
 	}
 
-	propertiesWithKindName, err := serviceProperties.GetPropertiesWithKindName()
+	propsWithKindName, err := serviceProps.GetPropsWithKindName()
 	if err != nil {
 		logger.Warning.Println(err)
 		res.Status = 500
@@ -135,22 +135,22 @@ func getProperties(catIdSrc string) response.Result {
 
 	res.Status = 200
 	res.Err = nil
-	res.Data = propertiesWithKindName
+	res.Data = propsWithKindName
 	return res
 }
-func getPropertiesPropertyId(sPropertyId string) response.Result {
-	serviceProperties := service.NewPropertyService()
-	serviceValuesProperties := service.NewValuesPropertyService()
+func getPropsPropId(sPropId string) response.Result {
+	serviceProps := service.NewPropService()
+	serviceValuesProps := service.NewValuesPropService()
 	res := response.Result{}
 
-	propertyId, err := strconv.ParseUint(sPropertyId, 10, 64)
+	propId, err := strconv.ParseUint(sPropId, 10, 64)
 	if err != nil {
 		res.Status = 400
 		res.Err = err
 		return res
 	}
 
-	propertyFull, err := serviceProperties.GetPropertyFullById(propertyId, serviceValuesProperties)
+	propFull, err := serviceProps.GetPropFullById(propId, serviceValuesProps)
 	if gorm.IsRecordNotFoundError(err) {
 		res.Status = 404
 		res.Err = err
@@ -164,15 +164,15 @@ func getPropertiesPropertyId(sPropertyId string) response.Result {
 
 	res.Status = 200
 	res.Err = nil
-	res.Data = propertyFull
+	res.Data = propFull
 	return res
 }
-func postProperties(postRequest *request.PostProperty,
+func postProps(postRequest *request.PostProp,
 	mId map[string]string, mTitle map[string]string, mPos map[string]string) response.Result {
-	serviceProperties := service.NewPropertyService()
-	serviceValuesProperties := service.NewValuesPropertyService()
+	serviceProps := service.NewPropService()
+	serviceValuesProps := service.NewValuesPropService()
 	res := response.Result{}
-	prop := new(storage.Property)
+	prop := new(storage.Prop)
 	sliceJson := helpers.GetTagsFromStruct(storage.Ad{}, "json")
 
 	if has, _ := helpers.InArray(strings.TrimSpace(postRequest.Name), sliceJson); has {
@@ -184,13 +184,13 @@ func postProperties(postRequest *request.PostProperty,
 	tx := server.Db.Debug().Begin()
 
 	prop.Title = strings.TrimSpace(postRequest.Title)
-	prop.KindPropertyId = postRequest.KindPropertyId
+	prop.KindPropId = postRequest.KindPropId
 	prop.Name = strings.TrimSpace(postRequest.Name)
 	prop.Suffix = strings.TrimSpace(postRequest.Suffix)
 	prop.Comment = strings.TrimSpace(postRequest.Comment)
 	prop.PrivateComment = strings.TrimSpace(postRequest.PrivateComment)
 
-	if err := serviceProperties.Create(prop, tx); err != nil {
+	if err := serviceProps.Create(prop, tx); err != nil {
 		tx.Rollback()
 		res.Status = 400
 		res.Err = err
@@ -203,7 +203,7 @@ func postProperties(postRequest *request.PostProperty,
 		mId, mTitle, mPos = createMapsFromMultiText(selectAsTextarea)
 	}
 
-	_, err := serviceProperties.ReWriteValuesForProperties(prop.PropertyId, tx, mId, mTitle, mPos)
+	_, err := serviceProps.ReWriteValuesForProps(prop.PropId, tx, mId, mTitle, mPos)
 	if err != nil {
 		tx.Rollback()
 		res.Status = 500
@@ -213,7 +213,7 @@ func postProperties(postRequest *request.PostProperty,
 
 	tx.Commit()
 
-	propertyFull, err := serviceProperties.GetPropertyFullById(prop.PropertyId, serviceValuesProperties)
+	propFull, err := serviceProps.GetPropFullById(prop.PropId, serviceValuesProps)
 	if err != nil {
 		res.Status = 500
 		res.Err = err
@@ -222,17 +222,17 @@ func postProperties(postRequest *request.PostProperty,
 
 	res.Status = 201
 	res.Err = nil
-	res.Data = propertyFull
+	res.Data = propFull
 	return res
 }
-func putPropertiesPropertyId(sPropertyId string, putRequest *request.PutProperty,
+func putPropsPropId(sPropId string, putRequest *request.PutProp,
 	mId map[string]string, mTitle map[string]string, mPos map[string]string) response.Result {
-	serviceProperties := service.NewPropertyService()
-	serviceValuesProperties := service.NewValuesPropertyService()
+	serviceProps := service.NewPropService()
+	serviceValuesProps := service.NewValuesPropService()
 	res := response.Result{}
 	sliceJson := helpers.GetTagsFromStruct(storage.Ad{}, "json")
 
-	propertyId, err := strconv.ParseUint(sPropertyId, 10, 64)
+	propId, err := strconv.ParseUint(sPropId, 10, 64)
 	if err != nil {
 		res.Status = 500
 		res.Err = err
@@ -245,7 +245,7 @@ func putPropertiesPropertyId(sPropertyId string, putRequest *request.PutProperty
 		return res
 	}
 
-	prop, err := serviceProperties.GetPropertyById(propertyId)
+	prop, err := serviceProps.GetPropById(propId)
 	if gorm.IsRecordNotFoundError(err) {
 		res.Status = 404
 		res.Err = err
@@ -261,19 +261,19 @@ func putPropertiesPropertyId(sPropertyId string, putRequest *request.PutProperty
 
 	prop.Title = strings.TrimSpace(putRequest.Title)
 	prop.Name = strings.TrimSpace(putRequest.Name)
-	prop.KindPropertyId = putRequest.KindPropertyId
+	prop.KindPropId = putRequest.KindPropId
 	prop.Suffix = strings.TrimSpace(putRequest.Suffix)
 	prop.Comment = strings.TrimSpace(putRequest.Comment)
 	prop.PrivateComment = strings.TrimSpace(putRequest.PrivateComment)
 
-	if err = serviceProperties.Update(prop, tx); err != nil {
+	if err = serviceProps.Update(prop, tx); err != nil {
 		tx.Rollback()
 		res.Status = 400
 		res.Err = err
 		return res
 	}
 
-	_, err = serviceProperties.ReWriteValuesForProperties(prop.PropertyId, tx, mId, mTitle, mPos)
+	_, err = serviceProps.ReWriteValuesForProps(prop.PropId, tx, mId, mTitle, mPos)
 	if err != nil {
 		tx.Rollback()
 		res.Status = 500
@@ -283,7 +283,7 @@ func putPropertiesPropertyId(sPropertyId string, putRequest *request.PutProperty
 
 	tx.Commit()
 
-	propertyFull, err := serviceProperties.GetPropertyFullById(prop.PropertyId, serviceValuesProperties)
+	propFull, err := serviceProps.GetPropFullById(prop.PropId, serviceValuesProps)
 	if err != nil {
 		res.Status = 500
 		res.Err = err
@@ -292,15 +292,14 @@ func putPropertiesPropertyId(sPropertyId string, putRequest *request.PutProperty
 
 	res.Status = 200
 	res.Err = nil
-	res.Data = propertyFull
+	res.Data = propFull
 	return res
 }
-func deletePropertiesPropertyId(sPropertyId string) response.Result {
-	serviceProperties := service.NewPropertyService()
-	serviceValueProperties := service.NewValuesPropertyService()
+func deletePropsPropId(sPropId string) response.Result {
+	serviceProps := service.NewPropService()
 	res := response.Result{}
 
-	propertyId, err := strconv.ParseUint(sPropertyId, 10, 64)
+	propId, err := strconv.ParseUint(sPropId, 10, 64)
 	if err != nil {
 		res.Status = 400
 		res.Err = err
@@ -308,7 +307,7 @@ func deletePropertiesPropertyId(sPropertyId string) response.Result {
 	}
 
 	tx := server.Db.Debug().Begin()
-	if err := serviceProperties.Delete(propertyId, serviceValueProperties, tx); err != nil {
+	if err := serviceProps.Delete(propId, tx); err != nil {
 		tx.Rollback()
 		res.Status = 500
 		res.Err = err

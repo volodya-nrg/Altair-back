@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 func NewCatService() *CatService {
@@ -21,6 +20,7 @@ type CatService struct{}
 func (cs CatService) GetCats() ([]*storage.Cat, error) {
 	cats := make([]*storage.Cat, 0)
 
+	// порядок важен: parent_id asc, pos asc, cat_id asc
 	err := server.Db.Debug().Order("parent_id asc, pos asc, cat_id asc").Find(&cats).Error
 	if err != nil {
 		return cats, err
@@ -72,23 +72,24 @@ func (cs CatService) GetCatByID(catId uint64) (*storage.Cat, error) {
 
 	return pCat, err
 }
-func (cs CatService) GetCatFullByID(catId uint64, withPropsOnlyFiltered bool, serviceProperties *PropertyService, valuesPropertyService *ValuesPropertyService) (*response.СatFull, error) {
-	pCatFull := new(response.СatFull)
+func (cs CatService) GetCatFullByID(catId uint64, withPropsOnlyFiltered bool) (*response.СatFull, error) {
+	serviceProps := NewPropService()
+	catFull := new(response.СatFull)
 
 	pCat, err := cs.GetCatByID(catId)
 	if err != nil {
-		return pCatFull, err
+		return catFull, err
 	}
 
-	listPPropertiesFull, err := serviceProperties.GetPropertiesFullByCatId(catId, withPropsOnlyFiltered, valuesPropertyService)
+	propsFull, err := serviceProps.GetPropsFullByCatId(catId, withPropsOnlyFiltered)
 	if err != nil {
-		return pCatFull, err
+		return catFull, err
 	}
 
-	pCatFull.Cat = pCat
-	pCatFull.PropertiesFull = listPPropertiesFull
+	catFull.Cat = pCat
+	catFull.PropsFull = propsFull
 
-	return pCatFull, nil
+	return catFull, nil
 }
 func (cs CatService) Create(cat *storage.Cat, tx *gorm.DB) error {
 	cat.Slug = helpers.TranslitRuToEn(cat.Name)
@@ -120,99 +121,98 @@ func (cs CatService) Delete(catId uint64, tx *gorm.DB) error {
 		tx = server.Db.Debug()
 	}
 	if err := tx.Where("cat_id = ?", catId).Delete(storage.Cat{}).Error; err != nil {
-		tx.Rollback()
 		return err
 	}
-	if err := cs.deleteFromCatsPropertiesByCatId(catId, tx); err != nil {
-		tx.Rollback()
+	if err := cs.deleteFromCatsPropsByCatId(catId, tx); err != nil {
 		return err
 	}
-
-	tx.Commit()
 
 	return nil
 }
-func (cs CatService) ReWriteCatsProperties(
+func (cs CatService) ReWriteCatsProps(
 	catId uint64,
 	tx *gorm.DB,
-	mPropertyId map[string]string,
+	mPropId map[string]string,
 	mPos map[string]string,
 	mIsRequire map[string]string,
 	mIsCanAsFilter map[string]string,
-	mComment map[string]string) ([]*storage.CatProperty, error) {
+	mComment map[string]string) ([]*storage.CatProp, error) {
 
-	list := make([]*storage.CatProperty, 0)
+	list := make([]*storage.CatProp, 0)
 
 	if tx == nil {
 		tx = server.Db.Debug()
 	}
 
-	tbl := tx.Table("cats_properties")
+	tbl := tx.Table("cats_props")
 
-	if err := cs.deleteFromCatsPropertiesByCatId(catId, nil); err != nil {
+	if err := cs.deleteFromCatsPropsByCatId(catId, nil); err != nil {
 		return list, err
 	}
 
-	for k, sPropertyId := range mPropertyId {
-		iPropertyId, err := strconv.ParseUint(sPropertyId, 10, 64)
+	for k, sPropId := range mPropId {
+		iPropId, err := strconv.ParseUint(sPropId, 10, 64)
 		if err != nil {
 			return list, err
 		}
 
-		catProperty := new(storage.CatProperty)
-		catProperty.CatId = catId
-		catProperty.PropertyId = iPropertyId
+		catProp := new(storage.CatProp)
+		catProp.CatId = catId
+		catProp.PropId = iPropId
 
 		if val, found := mPos[k]; found {
 			if iPos, err := strconv.ParseUint(val, 10, 64); err == nil && iPos > 0 {
-				catProperty.Pos = iPos
+				catProp.Pos = iPos
 			}
 		}
 
 		if val, found := mIsRequire[k]; found {
-			catProperty.IsRequire = val == "true"
+			catProp.IsRequire = val == "true"
 		}
 
 		if val, found := mIsCanAsFilter[k]; found {
-			catProperty.IsCanAsFilter = val == "true"
+			catProp.IsCanAsFilter = val == "true"
 		}
 
 		if val, found := mComment[k]; found {
-			catProperty.Comment = strings.TrimSpace(val)
+			catProp.Comment = strings.TrimSpace(val)
 		}
 
-		if !tbl.NewRecord(catProperty) {
-			return list, errNotCreateNewCatProperty
+		if !tbl.NewRecord(catProp) {
+			return list, errNotCreateNewCatProp
 		}
 
-		if err := tbl.Create(catProperty).Error; err != nil {
+		if err := tbl.Create(catProp).Error; err != nil {
 			return list, err
 		}
 
-		list = append(list, catProperty)
+		list = append(list, catProp)
 	}
 
 	return list, nil
 }
-func (cs CatService) GetAncestorsNastedLoop(cats []storage.Cat, findCatId uint64) []storage.Cat {
-	a := cs.ancestorsNastedLoopWalk(cats, findCatId, nil)
+func (cs CatService) GetAncestors(catsTree *response.CatTree, findCatId uint64) []storage.Cat { // предки
+	list := make([]storage.Cat, 0)
 
-	// Reverse examples:
+	for _, branch := range catsTree.Childes {
+		if branch.CatId == findCatId {
+			list = append(list, *branch.Cat)
+			return list
+		}
+		if len(branch.Childes) > 0 {
+			res := cs.GetAncestors(branch, findCatId)
 
-	// v1.
-	// sort.Slice(a[:], func(i, j int) bool { return i > j })
-
-	// v2.
-	for left, right := 0, len(a)-1; left < right; left, right = left+1, right-1 {
-		a[left], a[right] = a[right], a[left]
+			if len(res) > 0 {
+				list = append(list, *branch.Cat)
+				list = append(list, res...)
+				return list
+			}
+		}
 	}
 
-	// v3.
-	//sort.Sort(ReverseCat(b))
-
-	return a
+	return list
 }
-func (cs CatService) GetDescendantsNastedLoop(catsTree *response.CatTree, findCatId uint64) *response.CatTree {
+func (cs CatService) GetDescendants(catsTree *response.CatTree, findCatId uint64) *response.CatTree { // потомки
 	result := new(response.CatTree)
 
 	if findCatId == 0 {
@@ -228,29 +228,13 @@ func (cs CatService) GetDescendantsNastedLoop(catsTree *response.CatTree, findCa
 			return branch
 
 		} else if len(branch.Childes) > 0 {
-			if res := cs.GetDescendantsNastedLoop(branch, findCatId); !reflect.ValueOf(res.Cat).IsNil() && res.Cat.CatId > 0 {
+			if res := cs.GetDescendants(branch, findCatId); !reflect.ValueOf(res.Cat).IsNil() && res.Cat.CatId > 0 {
 				return res
 			}
 		}
 	}
 
 	return result
-}
-func (cs CatService) GetDescendantsGoRutines(catsTree *response.CatTree, findCatId uint64) response.CatTree {
-	var wg sync.WaitGroup
-	out := response.CatTree{}
-
-	for _, tree := range catsTree.Childes {
-		wg.Add(1)
-		go func(tmpTree response.CatTree) {
-			defer wg.Done()
-			out = cs.descendantsGoRutinesWalk(tmpTree, findCatId)
-		}(*tree)
-	}
-
-	wg.Wait()
-
-	return out
 }
 func (cs CatService) GetIdsFromCatsTree(catsTree *response.CatTree) []uint64 {
 	result := make([]uint64, 0)
@@ -286,44 +270,6 @@ func (cs CatService) GetIdsFromCatsTree(catsTree *response.CatTree) []uint64 {
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func (cs CatService) ancestorsNastedLoopWalk(cats []storage.Cat, findCatId uint64, receiver []storage.Cat) []storage.Cat {
-	if receiver == nil {
-		receiver = make([]storage.Cat, 0)
-	}
-
-	for _, cat := range cats {
-		if cat.CatId == findCatId {
-			receiver = append(receiver, cat)
-			findCatId = cat.ParentId
-			break
-		}
-	}
-
-	if findCatId == 0 {
-		return receiver
-	}
-
-	return cs.ancestorsNastedLoopWalk(cats, findCatId, receiver)
-}
-func (cs CatService) descendantsGoRutinesWalk(catTree response.CatTree, findCatId uint64) response.CatTree {
-	result := response.CatTree{}
-
-	if catTree.CatId == findCatId {
-		return catTree
-	}
-
-	for _, tree := range catTree.Childes {
-		if tree.CatId == findCatId {
-			return *tree
-		}
-
-		if len(tree.Childes) > 0 {
-			return cs.descendantsGoRutinesWalk(*tree, findCatId)
-		}
-	}
-
-	return result
-}
 func (cs CatService) buildTreeWalk(branches *response.CatTree, inputCat response.CatTree) {
 	for _, branch := range branches.Childes {
 		if branch.CatId == inputCat.ParentId {
@@ -344,12 +290,12 @@ func (cs CatService) buildTreeFullWalk(branches *response.CatTreeFull, inputCat 
 		}
 	}
 }
-func (cs CatService) deleteFromCatsPropertiesByCatId(catId uint64, tx *gorm.DB) error {
+func (cs CatService) deleteFromCatsPropsByCatId(catId uint64, tx *gorm.DB) error {
 	if tx == nil {
 		tx = server.Db.Debug()
 	}
 
-	err := tx.Table("cats_properties").Delete(storage.CatProperty{}, "cat_id = ?", catId).Error
+	err := tx.Table("cats_props").Delete(storage.CatProp{}, "cat_id = ?", catId).Error
 
 	return err
 }

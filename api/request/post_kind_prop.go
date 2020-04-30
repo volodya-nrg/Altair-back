@@ -1,5 +1,5 @@
 package request
 
-type PostKindProperty struct {
+type PostKindProp struct {
 	Name string `form:"name" binding:"required"`
 }

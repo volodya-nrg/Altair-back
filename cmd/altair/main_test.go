@@ -2,6 +2,7 @@ package main
 
 import (
 	"altair/api/request"
+	"altair/api/response"
 	"altair/pkg/helpers"
 	"altair/pkg/service"
 	"altair/storage"
@@ -10,9 +11,17 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"io"
+	"io/ioutil"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
+	"os"
+	"path/filepath"
+	"strconv"
+	"sync"
 	"testing"
 )
 
@@ -241,16 +250,27 @@ func TestGetUsers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	w := httptest.NewRecorder()
 
-	req, err := http.NewRequest(http.MethodGet, "/api/v1/users", nil)
-	if !a.NoError(err) {
-		return
+	tests := []struct {
+		Want int
+	}{
+		{200},
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-	a.Equal(200, w.Code)
+	for _, tt := range tests {
+		t.Run("Get all user", func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, err := http.NewRequest(http.MethodGet, "/api/v1/users", nil)
+			if !a.NoError(err) {
+				return
+			}
+
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+			a.Equal(tt.Want, w.Code)
+		})
+	}
 }
 func TestGetUsersUserId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -454,55 +474,66 @@ func TestDeleteUsersUserId(t *testing.T) {
 	}
 }
 
-func TestGetKindProperties(t *testing.T) {
+func TestGetKindProps(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	w := httptest.NewRecorder()
 
-	req, err := http.NewRequest(http.MethodGet, "/api/v1/kind_properties", nil)
-	if !a.NoError(err) {
-		return
+	tests := []struct {
+		Want int
+	}{
+		{200},
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	for _, tt := range tests {
+		t.Run("Get all kind props", func(t *testing.T) {
+			w := httptest.NewRecorder()
 
-	a.Equal(200, w.Code)
+			req, err := http.NewRequest(http.MethodGet, "/api/v1/kind_props", nil)
+			if !a.NoError(err) {
+				return
+			}
+
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+
+			a.Equal(tt.Want, w.Code)
+		})
+	}
 }
-func TestGetKindPropertiesKindPropertyId(t *testing.T) {
+func TestGetKindPropsKindPropId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	serviceKindProperties := service.NewKindPropertyService()
+	serviceKindProps := service.NewKindPropService()
 	var elId uint64 = 0
 	type My struct {
 		ElId string
 		Want int
 	}
 
-	kindProperties, err := serviceKindProperties.GetKindProperties("kind_property_id desc")
+	kindProps, err := serviceKindProps.GetKindProps("kind_prop_id desc")
 	if !a.NoError(err) {
 		return
 	}
 
-	if len(kindProperties) > 0 {
-		elId = kindProperties[0].KindPropertyId
+	if len(kindProps) > 0 {
+		elId = kindProps[0].KindPropId
 	}
 
 	tests := []My{
 		{fmt.Sprint(elId + uint64(1)), 404},
 	}
 
-	if len(kindProperties) > 0 {
+	if len(kindProps) > 0 {
 		tests = append(tests, My{fmt.Sprint(elId), 200})
 	}
 
 	for _, tt := range tests {
-		t.Run("Get KindPropertyId one", func(t *testing.T) {
+		t.Run("Get KindPropId one", func(t *testing.T) {
 			w := httptest.NewRecorder()
 
-			req, err := http.NewRequest(http.MethodGet, "/api/v1/kind_properties/"+tt.ElId, nil)
+			req, err := http.NewRequest(http.MethodGet, "/api/v1/kind_props/"+tt.ElId, nil)
 			if !a.NoError(err) {
 				return
 			}
@@ -513,22 +544,22 @@ func TestGetKindPropertiesKindPropertyId(t *testing.T) {
 		})
 	}
 }
-func TestPostKindProperties(t *testing.T) {
+func TestPostKindProps(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	serviceKindProperties := service.NewKindPropertyService()
+	serviceKindProps := service.NewKindPropService()
 
 	tests := []struct {
-		Post request.PostKindProperty
+		Post request.PostKindProp
 		Want int
 	}{
-		{request.PostKindProperty{Name: helpers.RandStringRunes(5)}, 201},
-		{request.PostKindProperty{Name: ""}, 400},
+		{request.PostKindProp{Name: helpers.RandStringRunes(5)}, 201},
+		{request.PostKindProp{Name: ""}, 400},
 	}
 
 	for _, tt := range tests {
-		t.Run("Create one KindProperty", func(t *testing.T) {
+		t.Run("Create one KindProp", func(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			b, err := json.Marshal(tt.Post)
@@ -536,7 +567,7 @@ func TestPostKindProperties(t *testing.T) {
 				return
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "/api/v1/kind_properties", bytes.NewBuffer(b))
+			req, err := http.NewRequest(http.MethodPost, "/api/v1/kind_props", bytes.NewBuffer(b))
 			if !a.NoError(err) {
 				return
 			}
@@ -547,54 +578,54 @@ func TestPostKindProperties(t *testing.T) {
 			a.Equal(tt.Want, w.Code, w.Body)
 
 			if w.Code == 201 {
-				kp := new(storage.KindProperty)
+				kp := new(storage.KindProp)
 
 				if a.NoError(json.Unmarshal(w.Body.Bytes(), kp)) {
-					a.NoError(serviceKindProperties.Delete(kp.KindPropertyId, nil))
+					a.NoError(serviceKindProps.Delete(kp.KindPropId, nil))
 				}
 			}
 		})
 	}
 }
-func TestPutKindPropertiesKindPropertyId(t *testing.T) {
+func TestPutKindPropsKindPropId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	serviceKindProperties := service.NewKindPropertyService()
-	kp := &storage.KindProperty{
+	serviceKindProps := service.NewKindPropService()
+	kp := &storage.KindProp{
 		Name: helpers.RandStringRunes(3),
 	}
 
-	err := a.NoError(serviceKindProperties.Create(kp, nil))
+	err := a.NoError(serviceKindProps.Create(kp, nil))
 	defer func() {
-		a.NoError(serviceKindProperties.Delete(kp.KindPropertyId, nil))
+		a.NoError(serviceKindProps.Delete(kp.KindPropId, nil))
 	}()
 	if !err {
 		return
 	}
 
 	tests := []struct {
-		Put  request.PutKindProperty
+		Put  request.PutKindProp
 		Want int
 	}{
 		{
-			request.PutKindProperty{
-				KindPropertyId: kp.KindPropertyId,
-				Name:           helpers.RandStringRunes(5),
+			request.PutKindProp{
+				KindPropId: kp.KindPropId,
+				Name:       helpers.RandStringRunes(5),
 			},
 			200,
 		},
 		{
-			request.PutKindProperty{
-				KindPropertyId: kp.KindPropertyId + 1,
-				Name:           kp.Name,
+			request.PutKindProp{
+				KindPropId: kp.KindPropId + 1,
+				Name:       kp.Name,
 			},
 			404,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run("Edit one KindProperty", func(t *testing.T) {
+		t.Run("Edit one KindProp", func(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			b, err := json.Marshal(tt.Put)
@@ -602,7 +633,7 @@ func TestPutKindPropertiesKindPropertyId(t *testing.T) {
 				return
 			}
 
-			url := "/api/v1/kind_properties/" + fmt.Sprint(tt.Put.KindPropertyId)
+			url := "/api/v1/kind_props/" + fmt.Sprint(tt.Put.KindPropId)
 			req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(b))
 			if !a.NoError(err) {
 				return
@@ -614,28 +645,28 @@ func TestPutKindPropertiesKindPropertyId(t *testing.T) {
 		})
 	}
 }
-func TestDeleteKindPropertiesKindPropertyId(t *testing.T) {
+func TestDeleteKindPropsKindPropId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	serviceKindProperties := service.NewKindPropertyService()
+	serviceKindProps := service.NewKindPropService()
 
 	tests := []struct {
-		Kp   *storage.KindProperty
+		Kp   *storage.KindProp
 		Want int
 	}{
-		{&storage.KindProperty{Name: "test" + helpers.RandStringRunes(5)}, 204},
+		{&storage.KindProp{Name: "test" + helpers.RandStringRunes(5)}, 204},
 	}
 
 	for _, tt := range tests {
-		t.Run("Delete one KindProperty", func(t *testing.T) {
-			if !a.NoError(serviceKindProperties.Create(tt.Kp, nil)) {
+		t.Run("Delete one KindProp", func(t *testing.T) {
+			if !a.NoError(serviceKindProps.Create(tt.Kp, nil)) {
 				return
 			}
 
 			w := httptest.NewRecorder()
 
-			req, err := http.NewRequest(http.MethodDelete, "/api/v1/kind_properties/"+fmt.Sprint(tt.Kp.KindPropertyId), nil)
+			req, err := http.NewRequest(http.MethodDelete, "/api/v1/kind_props/"+fmt.Sprint(tt.Kp.KindPropId), nil)
 			if !a.NoError(err) {
 				return
 			}
@@ -646,39 +677,50 @@ func TestDeleteKindPropertiesKindPropertyId(t *testing.T) {
 	}
 }
 
-func TestGetProperties(t *testing.T) {
+func TestGetProps(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	w := httptest.NewRecorder()
 
-	req, err := http.NewRequest(http.MethodGet, "/api/v1/properties", nil)
-	if !a.NoError(err) {
-		return
+	tests := []struct {
+		Want int
+	}{
+		{200},
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-	a.Equal(200, w.Code)
+	for _, tt := range tests {
+		t.Run("Get all props", func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, err := http.NewRequest(http.MethodGet, "/api/v1/props", nil)
+			if !a.NoError(err) {
+				return
+			}
+
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+			a.Equal(tt.Want, w.Code)
+		})
+	}
 }
-func TestGetPropertiesPropertyId(t *testing.T) {
+func TestGetPropsPropId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	serviceProperties := service.NewPropertyService()
+	serviceProps := service.NewPropService()
 	var elId uint64 = 0
 	type My struct {
-		PropertyId string
-		Want       int
+		PropId string
+		Want   int
 	}
 
-	properties, err := serviceProperties.GetProperties("property_id desc")
+	props, err := serviceProps.GetProps("prop_id desc")
 	if !a.NoError(err) {
 		return
 	}
 
-	if len(properties) > 0 {
-		elId = properties[0].PropertyId
+	if len(props) > 0 {
+		elId = props[0].PropId
 	}
 
 	tests := []My{
@@ -686,15 +728,15 @@ func TestGetPropertiesPropertyId(t *testing.T) {
 		{"test", 400},
 	}
 
-	if len(properties) > 0 {
+	if len(props) > 0 {
 		tests = append(tests, My{fmt.Sprint(elId), 200})
 	}
 
 	for _, tt := range tests {
-		t.Run("GET PropertyId", func(t *testing.T) {
+		t.Run("GET PropId", func(t *testing.T) {
 			w := httptest.NewRecorder()
 
-			req, err := http.NewRequest(http.MethodGet, "/api/v1/properties/"+tt.PropertyId, nil)
+			req, err := http.NewRequest(http.MethodGet, "/api/v1/props/"+tt.PropId, nil)
 			if !a.NoError(err) {
 				return
 			}
@@ -705,30 +747,29 @@ func TestGetPropertiesPropertyId(t *testing.T) {
 		})
 	}
 }
-func TestPostProperties(t *testing.T) {
+func TestPostProps(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	serviceProperties := service.NewPropertyService()
-	serviceValuesProperties := service.NewValuesPropertyService()
+	serviceProps := service.NewPropService()
 
 	tests := []struct {
-		Post request.PostProperty
+		Post request.PostProp
 		Want int
 	}{
-		{request.PostProperty{}, 400},
+		{request.PostProp{}, 400},
 		{
-			request.PostProperty{
-				Title:          helpers.RandStringRunes(5),
-				Name:           helpers.RandStringRunes(5),
-				KindPropertyId: 1,
+			request.PostProp{
+				Title:      helpers.RandStringRunes(5),
+				Name:       helpers.RandStringRunes(5),
+				KindPropId: 1,
 			},
 			201,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run("POST Properties", func(t *testing.T) {
+		t.Run("POST Props", func(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			b, err := json.Marshal(tt.Post)
@@ -736,7 +777,7 @@ func TestPostProperties(t *testing.T) {
 				return
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "/api/v1/properties", bytes.NewBuffer(b))
+			req, err := http.NewRequest(http.MethodPost, "/api/v1/props", bytes.NewBuffer(b))
 			if !a.NoError(err) {
 				return
 			}
@@ -747,69 +788,68 @@ func TestPostProperties(t *testing.T) {
 			a.Equal(tt.Want, w.Code, w.Body)
 
 			if w.Code == 201 {
-				p := new(storage.Property)
+				p := new(storage.Prop)
 				if a.NoError(json.Unmarshal(w.Body.Bytes(), p)) {
-					a.NoError(serviceProperties.Delete(p.PropertyId, serviceValuesProperties, nil))
+					a.NoError(serviceProps.Delete(p.PropId, nil))
 				}
 			}
 		})
 	}
 }
-func TestPutPropertiesPropertyId(t *testing.T) {
+func TestPutPropsPropId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	serviceProperties := service.NewPropertyService()
-	serviceValuesProperties := service.NewValuesPropertyService()
-	pr := &storage.Property{
-		Title:          helpers.RandStringRunes(5),
-		Name:           helpers.RandStringRunes(5),
-		KindPropertyId: 1,
+	serviceProps := service.NewPropService()
+	pr := &storage.Prop{
+		Title:      helpers.RandStringRunes(5),
+		Name:       helpers.RandStringRunes(5),
+		KindPropId: 1,
 	}
 
-	noError := a.NoError(serviceProperties.Create(pr, nil))
+	noError := a.NoError(serviceProps.Create(pr, nil))
 	defer func() {
-		assert.NoError(t, serviceProperties.Delete(pr.PropertyId, serviceValuesProperties, nil))
+		assert.NoError(t, serviceProps.Delete(pr.PropId, nil))
 	}()
 	if !noError {
 		return
 	}
 
 	tests := []struct {
-		Put  request.PutProperty
+		Put  request.PutProp
 		Want int
 	}{
 		{
-			request.PutProperty{
-				PropertyId:     pr.PropertyId,
-				Title:          helpers.RandStringRunes(5),
-				Name:           helpers.RandStringRunes(5),
-				KindPropertyId: 2,
+			request.PutProp{
+				PropId:     pr.PropId,
+				Title:      helpers.RandStringRunes(5),
+				Name:       helpers.RandStringRunes(5),
+				KindPropId: 2,
 			},
 			200,
 		},
 		{
-			request.PutProperty{
-				PropertyId:     pr.PropertyId,
-				Title:          "",
-				Name:           helpers.RandStringRunes(5),
-				KindPropertyId: 3,
+			request.PutProp{
+				PropId:     pr.PropId,
+				Title:      "",
+				Name:       helpers.RandStringRunes(5),
+				KindPropId: 3,
 			},
 			400,
 		},
 		{
-			request.PutProperty{
-				PropertyId:     pr.PropertyId + 1,
-				Title:          helpers.RandStringRunes(5),
-				Name:           pr.Name,
-				KindPropertyId: 4,
+			request.PutProp{
+				PropId:     pr.PropId + 1,
+				Title:      helpers.RandStringRunes(5),
+				Name:       pr.Name,
+				KindPropId: 4,
 			},
 			404,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run("Put Property", func(t *testing.T) {
+		t.Run("Put Prop", func(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			b, err := json.Marshal(tt.Put)
@@ -817,7 +857,7 @@ func TestPutPropertiesPropertyId(t *testing.T) {
 				return
 			}
 
-			url := "/api/v1/properties/" + fmt.Sprint(tt.Put.PropertyId)
+			url := "/api/v1/props/" + fmt.Sprint(tt.Put.PropId)
 			req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(b))
 			if !a.NoError(err) {
 				return
@@ -829,35 +869,35 @@ func TestPutPropertiesPropertyId(t *testing.T) {
 		})
 	}
 }
-func TestDeletePropertiesPropertyId(t *testing.T) {
+func TestDeletePropsPropId(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := assert.New(t)
 	r := setupRouter()
-	serviceProperties := service.NewPropertyService()
+	serviceProps := service.NewPropService()
 
 	tests := []struct {
-		Pr   *storage.Property
+		Pr   *storage.Prop
 		Want int
 	}{
 		{
-			&storage.Property{
-				Name:           helpers.RandStringRunes(5),
-				KindPropertyId: 1,
+			&storage.Prop{
+				Name:       helpers.RandStringRunes(5),
+				KindPropId: 1,
 			},
 			204,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run("DELETE PropertyId", func(t *testing.T) {
-			noError := a.NoError(serviceProperties.Create(tt.Pr, nil))
+		t.Run("DELETE PropId", func(t *testing.T) {
+			noError := a.NoError(serviceProps.Create(tt.Pr, nil))
 			if !noError {
 				return
 			}
 
 			w := httptest.NewRecorder()
 
-			req, err := http.NewRequest(http.MethodDelete, "/api/v1/properties/"+fmt.Sprint(tt.Pr.PropertyId), nil)
+			req, err := http.NewRequest(http.MethodDelete, "/api/v1/props/"+fmt.Sprint(tt.Pr.PropId), nil)
 			if !a.NoError(err) {
 				return
 			}
@@ -1139,7 +1179,7 @@ func TestGetAdsAdId(t *testing.T) {
 		Want int
 	}
 
-	ads, err := serviceAds.GetAds(true)
+	ads, err := serviceAds.GetAds("created_at desc")
 	if !a.NoError(err) {
 		return
 	}
@@ -1176,8 +1216,6 @@ func TestPostAds(t *testing.T) {
 	a := assert.New(t)
 	r := setupRouter()
 	serviceAds := service.NewAdService()
-	serviceImages := service.NewImageService()
-	serviceAdDetail := service.NewAdDetailService()
 
 	tests := []struct {
 		Post request.PostAd
@@ -1214,7 +1252,7 @@ func TestPostAds(t *testing.T) {
 			if w.Code == 201 {
 				ad := new(storage.Ad)
 				if a.NoError(json.Unmarshal(w.Body.Bytes(), ad)) {
-					a.NoError(serviceAds.Delete(ad.AdId, nil, serviceImages, serviceAdDetail))
+					a.NoError(serviceAds.Delete(ad.AdId, nil))
 				}
 			}
 		})
@@ -1225,8 +1263,6 @@ func TestPutAdsAdId(t *testing.T) {
 	a := assert.New(t)
 	r := setupRouter()
 	serviceAds := service.NewAdService()
-	serviceImages := service.NewImageService()
-	serviceAdDetail := service.NewAdDetailService()
 	ad := &storage.Ad{
 		Title:       helpers.RandStringRunes(10),
 		CatId:       1,
@@ -1235,7 +1271,7 @@ func TestPutAdsAdId(t *testing.T) {
 
 	noError := a.NoError(serviceAds.Create(ad, nil))
 	defer func() {
-		a.NoError(serviceAds.Delete(ad.AdId, nil, serviceImages, serviceAdDetail))
+		a.NoError(serviceAds.Delete(ad.AdId, nil))
 	}()
 	if !noError {
 		return
@@ -1367,4 +1403,199 @@ func TestSearchAds(t *testing.T) {
 			a.Equal(tc.Want, w.Code)
 		})
 	}
+}
+func TestAllCatsOnWrite(t *testing.T) {
+	//gin.SetMode(gin.TestMode)
+	//a := assert.New(t)
+	//r := setupRouter()
+	//serviceCat := service.NewCatService()
+	//maxUserConnectionsToMySQL := 5
+	//
+	//cats, err := serviceCat.GetCats()
+	//if !a.NoError(err) {
+	//	return
+	//}
+	//
+	////testCat(479, t, r)
+	//catTree := serviceCat.GetCatsAsTree(cats)
+	//myCh := make(chan struct{}, maxUserConnectionsToMySQL)
+	//var wg sync.WaitGroup
+	//walkToCatTree(catTree.Childes, t, r, &wg, myCh)
+	//wg.Wait()
+}
+
+func walkToCatTree(list []*response.CatTree, t *testing.T, r *gin.Engine, wg *sync.WaitGroup, ch chan struct{}) {
+	for _, leaf := range list {
+		// если это ветка
+		if len(leaf.Childes) > 0 {
+			walkToCatTree(leaf.Childes, t, r, wg, ch)
+			continue
+		}
+		// тут мы находимся в "листе"
+		wg.Add(1)
+		go func(catId uint64) {
+			defer wg.Done()
+			ch <- struct{}{} // благодаря каналам создаим нормальную очередь
+			testCat(catId, t, r)
+			<-ch
+		}(leaf.CatId)
+	}
+}
+func testCat(catId uint64, t *testing.T, r *gin.Engine) {
+	a := assert.New(t)
+	serviceCat := service.NewCatService()
+	//serviceAd := service.NewAdService()
+	//serviceAdDetail := service.NewAdDetailService()
+	//serviceImages := service.NewImageService()
+
+	catFull, err := serviceCat.GetCatFullByID(catId, false)
+	if !a.NoError(err) {
+		return
+	}
+
+	// тут надо создать карту с нужными данными
+	receiver := make(map[string]string, 0)
+	receiver["title"] = helpers.RandStringRunes(10)
+	receiver["catId"] = fmt.Sprint(catFull.CatId)
+	receiver["description"] = helpers.RandStringRunes(10)
+	receiver["price"] = "0"
+	receiver["youtube"] = helpers.RandStringRunes(10)
+
+	// заполним карту доп. св-вами
+	for _, v1 := range catFull.PropsFull {
+		val := helpers.RandStringRunes(5)
+
+		if v1.KindPropName == "checkbox" || v1.KindPropName == "radio" || v1.KindPropName == "select" {
+			for _, v2 := range v1.Values {
+				val = fmt.Sprint(v2.ValueId)
+				break
+			}
+
+		} else if v1.KindPropName == "photo" {
+			val = v1.Comment
+
+		} else if v1.KindPropName == "input_number" {
+			val = "0"
+		}
+
+		receiver[v1.Name] = val
+	}
+
+	tests := []struct {
+		Map  map[string]string
+		Want int
+	}{
+		{
+			receiver,
+			201},
+	}
+
+	for _, tt := range tests {
+		t.Run("POST ad (all)", func(t *testing.T) {
+			body := new(bytes.Buffer)
+
+			form := multipart.NewWriter(body)
+			for k, v := range receiver {
+				// если это файлы
+				if k == "files" {
+					maxFiles, err := strconv.Atoi(v)
+					if !a.NoError(err) || maxFiles < 0 {
+						continue
+					}
+
+					// для подстраховки установим лимит
+					limitImages := 10
+					if maxFiles > limitImages {
+						maxFiles = limitImages
+					}
+
+					// обратимся к файлам
+					dirTestImg := "./web/assets/img/test/"
+					files, err := ioutil.ReadDir(dirTestImg)
+					if !a.NoError(err) {
+						continue
+					}
+
+					totalAcceptFiles := 0
+					for _, file := range files {
+						ext := filepath.Ext(file.Name())
+
+						if file.IsDir() || ext != ".jpg" {
+							continue
+						}
+
+						// берем только подходящее и нужное кол-во
+						if totalAcceptFiles >= maxFiles {
+							break
+						}
+						totalAcceptFiles++
+
+						err = attachFileInMultipart(form, dirTestImg+file.Name())
+						if !a.NoError(err) {
+							continue
+						}
+					}
+
+					continue
+				}
+				_ = form.WriteField(k, v)
+			}
+			_ = form.Close()
+
+			req, err := http.NewRequest(http.MethodPost, "/api/v1/ads", body)
+			if !a.NoError(err) {
+				return
+			}
+
+			req.Header.Set("Content-Type", form.FormDataContentType())
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			a.Equal(tt.Want, w.Code, w.Body)
+
+			//if w.Code == 201 {
+			//	ad := new(storage.Ad)
+			//	if a.NoError(json.Unmarshal(w.Body.Bytes(), ad)) {
+			//		a.NoError(serviceAd.Delete(ad.AdId, nil, serviceImages, serviceAdDetail))
+			//	}
+			//}
+		})
+	}
+}
+func attachFileInMultipart(mp *multipart.Writer, pathFile string) error {
+	fileBase := filepath.Base(pathFile)
+	fileExt := filepath.Ext(pathFile)
+
+	if !helpers.FileExists(pathFile) {
+		return fmt.Errorf("%s%s", "not found file: ", pathFile)
+	}
+
+	file, err := os.Open(pathFile)
+	defer func() {
+		_ = file.Close()
+	}()
+	if err != nil {
+		return err
+	}
+
+	h := textproto.MIMEHeader{}
+	contentDisposition := fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "files", fileBase)
+	h.Set("Content-Disposition", contentDisposition)
+	h.Set("Content-Type", "application/octet-stream")
+
+	if ct := mime.TypeByExtension(fileExt); ct != "" {
+		h.Set("Content-Type", ct)
+	}
+
+	part, err := mp.CreatePart(h)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(part, file)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -62,7 +62,7 @@ func (us UserService) Delete(userId uint64, tx *gorm.DB) error {
 		tx = server.Db.Debug()
 	}
 
-	if err := tx.Where("user_id = ?", userId).Delete(storage.User{}).Error; err != nil {
+	if err := tx.Delete(storage.User{}, "user_id = ?", userId).Error; err != nil {
 		return err
 	}
 

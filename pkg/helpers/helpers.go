@@ -93,6 +93,7 @@ func UploadImage(file *multipart.FileHeader, pathUpload string, funcSave func(fi
 	result := ""
 	extension := ".jpg"
 
+	// если заголовки правильно не выставлены на картинки, то Content-Type = application/octet-stream
 	if exists, _ := InArray(contentType, []string{"image/jpeg", "image/png"}); !exists {
 		return "", errNotAllowedImageType
 	}
@@ -316,6 +317,21 @@ func GetTagsFromStruct(i interface{}, tagName string) []string {
 	}
 
 	return aTagName
+}
+func Lorem(size int) string {
+	const loremString = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin facilisis mi sapien, vitae accumsan libero malesuada in. Suspendisse sodales finibus sagittis. Proin et augue vitae dui scelerisque imperdiet. Suspendisse et pulvinar libero. Vestibulum id porttitor augue. Vivamus lobortis lacus et libero ultricies accumsan. Donec non feugiat enim, nec tempus nunc. Mauris rutrum, diam euismod elementum ultricies, purus tellus faucibus augue, sit amet tristique diam purus eu arcu. Integer elementum urna non justo fringilla fermentum. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Quisque sollicitudin elit in metus imperdiet, et gravida tortor hendrerit. In volutpat tellus quis sapien rutrum, sit amet cursus augue ultricies. Morbi tincidunt arcu id commodo mollis. Aliquam laoreet purus sed justo pulvinar, quis porta risus lobortis. In commodo leo id porta mattis.`
+
+	if size >= len(loremString) || size < 1 {
+		return loremString
+	}
+
+	res := loremString[:size]
+	res = strings.TrimSpace(res)
+
+	return res
+}
+func RandIntByRange(min int, max int) int {
+	return rand.Intn(max-min) + min
 }
 
 // private -------------------------------------------------------------------------------------------------------------

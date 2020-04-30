@@ -3,22 +3,22 @@ $(function () {
     $(".datepicker").datepicker({dateFormat: "yy-mm-dd"});
 
     insertCatsTreeAsTagSelect('.target_for_cats_tree');
-    insertKindsProperties('.target_for_kind_properties');
-    insertProperties('.target_for_properties');
-    insertValuesForProperties('.target_for_values_properties');
+    insertKindsProps('.target_for_kind_props');
+    insertProps('.target_for_props');
+    insertValuesForProps('.target_for_values_props');
 
     $(document).on('click', '.wrapper_for_photo .icon', function (e) {
         var $wrapperForPhoto = $(this).closest('.wrapper_for_photo');
         $wrapperForPhoto.remove();
     });
-    $(document).on('click', '.target_for_properties .dynamic__add', function (e) {
-        addProperty($(this));
+    $(document).on('click', '.target_for_props .dynamic__add', function (e) {
+        addProp($(this));
     });
-    $(document).on('click', '.target_for_properties .dynamic__del', removeProperty);
-    $(document).on('click', '.target_for_values_properties .dynamic__add', function (e) {
-        addValueForProperty($(this));
+    $(document).on('click', '.target_for_props .dynamic__del', removeProp);
+    $(document).on('click', '.target_for_values_props .dynamic__add', function (e) {
+        addValueForProp($(this));
     });
-    $(document).on('click', '.target_for_values_properties .dynamic__del', delValueForProperty);
+    $(document).on('click', '.target_for_values_props .dynamic__del', delValueForProp);
     $(document).on('change', '.form[action="/api/v1/ads"][method="post"] .target_for_cats_tree > select, ' +
         '.form-put-put-ads .target_for_cats_tree > select, ' +
         '.form[action="/api/v1/search/ads"][method="get"] .target_for_cats_tree > select', function (e) {
@@ -35,8 +35,8 @@ $(function () {
         var isFormPutGetUsers = $form.hasClass('form-put-get-users');
         var isFormPutGetCats = $form.hasClass('form-put-get-cats');
         var isFormPutGetAds = $form.hasClass('form-put-get-ads');
-        var isFormPutGetProperties = $form.hasClass('form-put-get-properties');
-        var isFormPutGetKindProperties = $form.hasClass('form-put-get-kind_properties');
+        var isFormPutGetProps = $form.hasClass('form-put-get-props');
+        var isFormPutGetKindProps = $form.hasClass('form-put-get-kind_props');
         var data = new FormData(this);
         var objSettings = {
             processData: false,  // Important!
@@ -80,16 +80,16 @@ $(function () {
                 $tmpForm.find('#catsTree').empty();
                 formPutPutAds(response, $tmpForm);
 
-            } else if (isFormPutGetProperties) {
-                $tmpForm = $('.form-put-put-properties');
+            } else if (isFormPutGetProps) {
+                $tmpForm = $('.form-put-put-props');
                 $tmpForm.addClass("hidden").get(0).reset();
                 clickDynamicDel($tmpForm);
-                formPutPutProperties(response, $tmpForm);
+                formPutPutProps(response, $tmpForm);
 
-            } else if (isFormPutGetKindProperties) {
-                $tmpForm = $('.form-put-put-kind_properties');
+            } else if (isFormPutGetKindProps) {
+                $tmpForm = $('.form-put-put-kind_props');
                 $tmpForm.addClass("hidden").get(0).reset();
-                formPutPutKindProperties(response, $tmpForm);
+                formPutPutKindProps(response, $tmpForm);
             }
 
             if ($form.hasClass('sx-reload')) {
@@ -163,13 +163,13 @@ function insertCatsTreeAsTagSelect(selectorTarget) {
     }
 }
 
-function insertKindsProperties(selectorPlace) {
+function insertKindsProps(selectorPlace) {
     var $targetPlace = $(selectorPlace);
     var $select = $('<select></select>');
 
-    for (var key in ALTAIR.kindProperties) {
-        var el = ALTAIR.kindProperties[key];
-        $select.append('<option value="' + el.kindPropertyId + '">' + el.name + '</option>');
+    for (var key in ALTAIR.kindProps) {
+        var el = ALTAIR.kindProps[key];
+        $select.append('<option value="' + el.kindPropId + '">' + el.name + '</option>');
     }
 
     $targetPlace.each(function () {
@@ -198,7 +198,7 @@ function insertKindsProperties(selectorPlace) {
     });
 }
 
-function insertProperties(selectorPlace) {
+function insertProps(selectorPlace) {
     var tpl = [
         '<div class="dynamic">',
         '   <div class="dynamic__controls">',
@@ -211,11 +211,11 @@ function insertProperties(selectorPlace) {
     var $select = $('<select></select>');
 
     $select.append('<option value="0"></option>'); // почему тут 0? (забываю иногда)
-    for (var key in ALTAIR.properties) {
-        var el = ALTAIR.properties[key];
+    for (var key in ALTAIR.props) {
+        var el = ALTAIR.props[key];
         var privateComment = el.privateComment ? " (" + el.privateComment + ")" : "";
 
-        $select.append('<option value="' + el.propertyId + '" data-title="' + el.title + '">' + el.title + privateComment + '</option>');
+        $select.append('<option value="' + el.propId + '" data-title="' + el.title + '">' + el.title + privateComment + '</option>');
     }
 
     $(selectorPlace).each(function () {
@@ -227,7 +227,7 @@ function insertProperties(selectorPlace) {
     });
 }
 
-function insertValuesForProperties(selector) {
+function insertValuesForProps(selector) {
     var $places = $(selector);
     var $dynamic = $([
         '<div class="dynamic">',
@@ -335,9 +335,9 @@ function formPutPutCats(data, $form) {
     $form.find('input[name="titleComment"]').val(data.titleComment);
     $form.find('input[name="isAutogenerateTitle"]').prop("checked", data.isAutogenerateTitle);
 
-    if (data.properties && data.properties.length) {
-        for (var i = 0; i < data.properties.length; i++) {
-            addProperty($form.find('.dynamic__add'), data.properties[i]);
+    if (data.props && data.props.length) {
+        for (var i = 0; i < data.props.length; i++) {
+            addProp($form.find('.dynamic__add'), data.props[i]);
         }
     }
 }
@@ -358,17 +358,16 @@ function formPutPutAds(data, $form) {
 
     // в пришедшие позже св-ва вставим актуальные
     changeSelectOnCatsTree($selectCat, function () {
-        var $box = $form.find('.cat_properties');
+        var $box = $form.find('.cat_props');
 
-        for (var i = 0; i < data.details.length; i++) {
-            var detail = data.details[i];
-            var kind = detail.kindPropertyName;
+        for (var i = 0; i < data.detailsExt.length; i++) {
+            var detailExt = data.detailsExt[i]; // adId, propId, value, propName, kindPropName, value_Name
 
-            if (kind === "radio") {
-                $box.find('input[type="radio"][name="' + detail.propertyName + '"][value="' + detail.value + '"]').prop("checked", true);
+            if (detailExt.kindPropName === "radio") {
+                $box.find('input[type="radio"][name="' + detailExt.propName + '"][value="' + detailExt.value + '"]').prop("checked", true);
 
-            } else {
-                $box.find('[name="' + detail.propertyName + '"]').val(detail.value);
+            } else if (detailExt.kindPropName !== "photo") {
+                $box.find('[name="' + detailExt.propName + '"]').val(detailExt.value);
             }
         }
 
@@ -378,30 +377,30 @@ function formPutPutAds(data, $form) {
     });
 }
 
-function formPutPutProperties(data, $form) {
+function formPutPutProps(data, $form) {
     $form.removeClass('hidden');
-    $form.find('input[name="propertyId"]').val(data.propertyId);
+    $form.find('input[name="propId"]').val(data.propId);
     $form.find('input[name="title"]').val(data.title);
     $form.find('input[name="name"]').val(data.name);
-    $form.find('select[name="kindPropertyId"]').val(data.kindPropertyId);
+    $form.find('select[name="kindPropId"]').val(data.kindPropId);
     $form.find('input[name="suffix"]').val(data.suffix);
     $form.find('input[name="comment"]').val(data.comment);
     $form.find('input[name="privateComment"]').val(data.privateComment);
 
     if (data.values && data.values.length) {
         for (var i = 0; i < data.values.length; i++) {
-            addValueForProperty($form.find('.dynamic__add'), data.values[i]);
+            addValueForProp($form.find('.dynamic__add'), data.values[i]);
         }
     }
 }
 
-function formPutPutKindProperties(data, $form) {
+function formPutPutKindProps(data, $form) {
     $form.removeClass('hidden');
-    $form.find('input[name="kindPropertyId"]').val(data.kindPropertyId);
+    $form.find('input[name="kindPropId"]').val(data.kindPropId);
     $form.find('input[name="name"]').val(data.name);
 }
 
-function addProperty($ctx, properties) {
+function addProp($ctx, props) {
     var $owner = $ctx;
 
     if (!$ctx.hasClass('dynamic')) {
@@ -411,69 +410,69 @@ function addProperty($ctx, properties) {
     var $items = $owner.find('.dynamic__items');
     var $item = $owner.find('.dynamic__item');
     var $select = $owner.find('.dynamic__controls select');
-    var propertyIdSrc = parseInt($select.val());
+    var propIdSrc = parseInt($select.val());
     var index = $item.length + 1;
 
-    var propertyId = propertyIdSrc;
+    var propId = propIdSrc;
     var pos = index;
-    var propertyIsRequire = false;
-    var propertyIsCanAsFilter = false;
-    var propertyComment = "";
+    var propIsRequire = false;
+    var propIsCanAsFilter = false;
+    var propComment = "";
     var privateComment = "";
 
-    if (properties) {
-        propertyId = properties.propertyId;
-        pos = properties.propertyPos;
-        propertyIsRequire = properties.propertyIsRequire;
-        propertyIsCanAsFilter = properties.propertyIsCanAsFilter;
-        propertyComment = properties.propertyComment;
-        privateComment = properties.privateComment;
+    if (props) {
+        propId = props.propId;
+        pos = props.propPos;
+        propIsRequire = props.propIsRequire;
+        propIsCanAsFilter = props.propIsCanAsFilter;
+        propComment = props.propComment;
+        privateComment = props.privateComment;
     }
 
-    if (!propertyId) {
+    if (!propId) {
         alert('Ошибка: не выбрано значение!');
         return;
     }
 
-    var $option = $select.find('option[value="' + propertyId + '"]');
+    var $option = $select.find('option[value="' + propId + '"]');
     var tpl = [
-        '<div class="dynamic__item" data-property_id="' + propertyId + '">',
-        '   <input type="hidden" name="propertyId[' + index + ']" value="' + propertyId + '"/>',
+        '<div class="dynamic__item" data-prop_id="' + propId + '">',
+        '   <input type="hidden" name="propId[' + index + ']" value="' + propId + '"/>',
         '   <small><strong>' + $option.data('title') + '</strong> ' + privateComment + '</small>:',
         '   <div class="dynamic__inputs">',
-        '       <input type="text" name="comment[' + index + ']" value="' + propertyComment + '" placeholder="comment"/>',
+        '       <input type="text" name="comment[' + index + ']" value="' + propComment + '" placeholder="comment"/>',
         '       <input class="dynamic__input_mid" type="number" name="pos[' + index + ']" value="' + pos + '"/>',
         '       <div class="dynamic__input_short"><span class="icon dynamic__del">-</span></div>',
         '   </div>',
         '   <div class="dynamic__inputs">',
         '       <label>',
-        '           <input type="checkbox" name="isRequire[' + index + ']" value="true"' + (propertyIsRequire ? ' checked="checked"' : "") + '/> обяз.',
+        '           <input type="checkbox" name="isRequire[' + index + ']" value="true"' + (propIsRequire ? ' checked="checked"' : "") + '/> обяз.',
         '       </label>',
         '       <label>',
-        '           <input type="checkbox" name="isCanAsFilter[' + index + ']" value="true"' + (propertyIsCanAsFilter ? ' checked="checked"' : "") + '/> как фильтр',
+        '           <input type="checkbox" name="isCanAsFilter[' + index + ']" value="true"' + (propIsCanAsFilter ? ' checked="checked"' : "") + '/> как фильтр',
         '       </label>',
         '       <div></div>',
         '   </div>',
         '</div>',
     ].join('');
 
-    $select.find('option[value="' + propertyId + '"]').attr("disabled", true);
+    $select.find('option[value="' + propId + '"]').attr("disabled", true);
     $items.append(tpl);
     $select.val(0);
 }
 
-function removeProperty(e) {
+function removeProp(e) {
     var $self = $(e.target);
     var $parent = $self.closest('.dynamic__item');
     var $owner = $self.closest('.dynamic');
     var $select = $owner.find('.dynamic__controls select');
-    var propertyId = $parent.data('property_id');
+    var propId = $parent.data('prop_id');
 
-    $select.find('option[value="' + propertyId + '"]').attr("disabled", false);
+    $select.find('option[value="' + propId + '"]').attr("disabled", false);
     $parent.remove();
 }
 
-function addValueForProperty($ctx, oValue) {
+function addValueForProp($ctx, oValue) {
     var $owner = $ctx;
 
     if (!$ctx.hasClass('dynamic')) {
@@ -502,7 +501,7 @@ function addValueForProperty($ctx, oValue) {
     $items.append(tpl);
 }
 
-function delValueForProperty(e) {
+function delValueForProp(e) {
     var $self = $(e.target);
     var $parent = $self.closest('.dynamic__item');
     $parent.remove();
@@ -510,7 +509,7 @@ function delValueForProperty(e) {
 
 function changeSelectOnCatsTree($select, cb) {
     var catId = $select.val();
-    var $wrapper = $('<div class="cat_properties"></div>');
+    var $wrapper = $('<div class="cat_props"></div>');
     var withPropsOnlyFiltered = $select.data('with_props_only_filtered');
     var isWithoutRequired = $select.data('without_required');
     var url = '/api/v1/cats/' + catId;
@@ -525,13 +524,13 @@ function changeSelectOnCatsTree($select, cb) {
         dataType: 'json',
         beforeSend: function (xhr) {
             $select.attr("disabled", true);
-            $select.parent().children(".cat_properties").remove();
+            $select.parent().children(".cat_props").remove();
         }
     }).done(function (response) {
-        var htmlCatProperties = buildHTMLCatProperties(response, isWithoutRequired);
+        var htmlCatProps = buildHTMLCatProps(response, isWithoutRequired);
 
-        if (htmlCatProperties) {
-            $wrapper.append($(htmlCatProperties));
+        if (htmlCatProps) {
+            $wrapper.append($(htmlCatProps));
             $select.after($wrapper);
         }
 
@@ -547,15 +546,15 @@ function changeSelectOnCatsTree($select, cb) {
     });
 }
 
-function buildHTMLCatProperties(oCatData, isWithoutRequired) {
+function buildHTMLCatProps(oCatData, isWithoutRequired) {
     var reciever = [];
 
-    for (var i = 0; i < oCatData.properties.length; i++) {
-        var property = oCatData.properties[i];
-        var symbolRequire = property.propertyIsRequire ? ' *' : '';
-        var title = property.title;
-        var tag = getHTMLTagCatProperty(property, isWithoutRequired);
-        var privateComment = property.privateComment ? ': ' + property.privateComment : '';
+    for (var i = 0; i < oCatData.props.length; i++) {
+        var prop = oCatData.props[i];
+        var symbolRequire = prop.propIsRequire ? ' *' : '';
+        var title = prop.title;
+        var tag = getHTMLTagCatProp(prop, isWithoutRequired);
+        var privateComment = prop.privateComment ? ': ' + prop.privateComment : '';
         var row = [
             '<div class="form__row">',
             '   <div class="form__title"><strong>' + title + symbolRequire + '</strong>' + privateComment + '</div>',
@@ -569,13 +568,13 @@ function buildHTMLCatProperties(oCatData, isWithoutRequired) {
     return reciever.join('');
 }
 
-function getHTMLTagCatProperty(property, isWithoutRequired) {
-    var propRequire = property.propertyIsRequire && !isWithoutRequired ? 'required="required"' : "";
-    var kind = property.kindPropertyName;
-    var name = property.name;
-    var pos = property.propertyPos;
-    var propId = property.propertyId;
-    var propertyComment = property.propertyComment;
+function getHTMLTagCatProp(prop, isWithoutRequired) {
+    var propRequire = prop.propIsRequire && !isWithoutRequired ? 'required="required"' : "";
+    var kind = prop.kindPropName;
+    var name = prop.name;
+    var pos = prop.propPos;
+    var propId = prop.propId;
+    var propComment = prop.propComment;
     var result = 'unknown';
     var el = '';
 
@@ -595,7 +594,7 @@ function getHTMLTagCatProperty(property, isWithoutRequired) {
         el += '<textarea name="' + name + '" ' + propRequire + ' data-pos="' + pos + '"></textarea>';
 
     } else if (kind === 'photo') { // вид св-ва
-        var maxFiles = parseInt(propertyComment) || 0;
+        var maxFiles = parseInt(propComment) || 0;
         var multiple = maxFiles > 1 ? ' multiple="multiple"' : '';
         var disabled = !maxFiles ? ' disabled="disabled"' : '';
 
@@ -604,9 +603,9 @@ function getHTMLTagCatProperty(property, isWithoutRequired) {
             '       <div class="form__files"></div>',
             '  </div>';
 
-    } else if (kind === 'radio' && property.values) {
-        for (var i = 0; i < property.values.length; i++) {
-            var oVal = property.values[i];
+    } else if (kind === 'radio' && prop.values) {
+        for (var i = 0; i < prop.values.length; i++) {
+            var oVal = prop.values[i];
             el += [
                 '<label>',
                 '   <input type="radio" value="' + oVal.valueId + '" name="' + name + '" ' + propRequire + ' data-pos="' + oVal.pos + '"/>',
@@ -616,9 +615,9 @@ function getHTMLTagCatProperty(property, isWithoutRequired) {
         }
 
     } else if (kind === 'checkbox') {
-        if (property.values.length > 1) {
-            for (var i = 0; i < property.values.length; i++) {
-                var oVal = property.values[i];
+        if (prop.values.length > 1) {
+            for (var i = 0; i < prop.values.length; i++) {
+                var oVal = prop.values[i];
                 el += [
                     '<label>',
                     '   <input type="checkbox" value="' + oVal.valueId + '" name="' + name + '" ' + propRequire + ' data-pos="' + oVal.pos + '"/>',
@@ -630,18 +629,18 @@ function getHTMLTagCatProperty(property, isWithoutRequired) {
         } else {
             el += [
                 '<label>',
-                '   <input type="checkbox" value="' + propId + '" name="' + name + '" ' + propRequire + ' data-pos="' + property.propertyPos + '"/>',
-                property.title,
+                '   <input type="checkbox" value="' + propId + '" name="' + name + '" ' + propRequire + ' data-pos="' + prop.propPos + '"/>',
+                prop.title,
                 '</label>'
             ].join('');
         }
 
-    } else if (kind === 'select' && property.values.length) {
+    } else if (kind === 'select' && prop.values.length) {
         el += '<select name="' + name + '" ' + propRequire + ' data-pos="' + pos + '">';
         el += '<option selected="selected" value="" data-pos="0"></option>';
 
-        for (var i = 0; i < property.values.length; i++) {
-            var oVal = property.values[i];
+        for (var i = 0; i < prop.values.length; i++) {
+            var oVal = prop.values[i];
             el += '<option value="' + oVal.valueId + '" data-pos="' + oVal.pos + '">' + oVal.title + '</option>';
         }
 
