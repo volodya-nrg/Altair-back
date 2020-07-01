@@ -2,189 +2,111 @@ package controller
 
 import (
 	"altair/api/request"
-	"altair/api/response"
-	"altair/pkg/helpers"
 	"altair/pkg/logger"
+	"altair/pkg/manager"
 	"altair/pkg/service"
 	"altair/server"
 	"altair/storage"
-	"errors"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"strconv"
 	"strings"
 )
 
-var (
-	errAlreadyHasReservedName = errors.New("already name exists")
-)
-
+// GetProps - получение всех свойств
 func GetProps(c *gin.Context) {
-	res := getProps(c.DefaultQuery("catId", ""))
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func GetPropsPropId(c *gin.Context) {
-	res := getPropsPropId(c.Param("propId"))
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func PostProps(c *gin.Context) {
-	postRequest := new(request.PostProp)
-
-	if err := c.ShouldBind(postRequest); err != nil {
-		logger.Warning.Println(err)
-		c.JSON(400, err.Error())
-		return
-	}
-
-	// тут нужно проверить чтоб не было зарезирвированных уже полей
-
-	mValueId := c.PostFormMap("valueId")
-	mValueTitle := c.PostFormMap("valueTitle")
-	mValuePos := c.PostFormMap("valuePos")
-
-	res := postProps(postRequest, mValueId, mValueTitle, mValuePos)
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func PutPropsPropId(c *gin.Context) {
-	putRequest := new(request.PutProp)
-
-	if err := c.ShouldBind(putRequest); err != nil {
-		logger.Warning.Println(err)
-		c.JSON(400, err.Error())
-		return
-	}
-
-	propId := c.Param("propId")
-	mValueId := c.PostFormMap("valueId")
-	mValueTitle := c.PostFormMap("valueTitle")
-	mValuePos := c.PostFormMap("valuePos")
-
-	res := putPropsPropId(propId, putRequest, mValueId, mValueTitle, mValuePos)
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func DeletePropsPropId(c *gin.Context) {
-	res := deletePropsPropId(c.Param("propId"))
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-
-// private -------------------------------------------------------------------------------------------------------------
-func getProps(catIdSrc string) response.Result {
+	sCatID := c.DefaultQuery("catID", "0")
 	serviceProps := service.NewPropService()
-	res := response.Result{}
 
-	if catIdSrc == "" {
-		catIdSrc = "0"
-	}
-
-	catId, err := strconv.ParseUint(catIdSrc, 10, 64)
+	catID, err := manager.SToUint64(sCatID)
 	if err != nil {
-		logger.Warning.Println(err)
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
-	// вытаскивать propFull слишком накладно (1.4мб)
-	if catId > 0 {
-		propsFull, err := serviceProps.GetPropsFullByCatId(catId, false)
+
+	// вытаскивать propFull слишком накладно (1.4мб), поэтому возьмем только для определенной категории
+	if catID > 0 {
+		propsFull, err := serviceProps.GetPropsFullByCatID(catID, false)
 		if err != nil {
-			logger.Warning.Println(err)
-			res.Status = 500
-			res.Err = err
-			return res
+			logger.Warning.Println(err.Error())
+			c.JSON(500, err.Error())
+			return
 		}
 
-		res.Status = 200
-		res.Err = nil
-		res.Data = propsFull
-		return res
+		c.JSON(200, propsFull)
+		return
 	}
 
 	propsWithKindName, err := serviceProps.GetPropsWithKindName()
 	if err != nil {
-		logger.Warning.Println(err)
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	res.Status = 200
-	res.Err = nil
-	res.Data = propsWithKindName
-	return res
+	c.JSON(200, propsWithKindName)
 }
-func getPropsPropId(sPropId string) response.Result {
+
+// GetPropsPropID - получение конкретного свойства
+func GetPropsPropID(c *gin.Context) {
+	sPropID := c.Param("propID")
 	serviceProps := service.NewPropService()
 	serviceValuesProps := service.NewValuesPropService()
-	res := response.Result{}
 
-	propId, err := strconv.ParseUint(sPropId, 10, 64)
+	propID, err := manager.SToUint64(sPropID)
 	if err != nil {
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	propFull, err := serviceProps.GetPropFullById(propId, serviceValuesProps)
+	propFull, err := serviceProps.GetPropFullByID(propID, serviceValuesProps)
 	if gorm.IsRecordNotFoundError(err) {
-		res.Status = 404
-		res.Err = err
-		return res
+		c.JSON(404, err.Error())
+		return
 
 	} else if err != nil {
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	res.Status = 200
-	res.Err = nil
-	res.Data = propFull
-	return res
+	c.JSON(200, propFull)
 }
-func postProps(postRequest *request.PostProp,
-	mId map[string]string, mTitle map[string]string, mPos map[string]string) response.Result {
+
+// PostProps - добавление свойства
+func PostProps(c *gin.Context) {
+	postRequest := new(request.PostProp)
+
+	if err := c.ShouldBind(postRequest); err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
+	}
+
 	serviceProps := service.NewPropService()
 	serviceValuesProps := service.NewValuesPropService()
-	res := response.Result{}
+	serviceKindProp := service.NewKindPropService()
 	prop := new(storage.Prop)
-	sliceJson := helpers.GetTagsFromStruct(storage.Ad{}, "json")
 
-	if has, _ := helpers.InArray(strings.TrimSpace(postRequest.Name), sliceJson); has {
-		res.Status = 400
-		res.Err = errAlreadyHasReservedName
-		return res
+	kindPropID, err := manager.SToUint64(postRequest.KindPropID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	tx := server.Db.Debug().Begin()
+	kindPropData, err := serviceKindProp.GetKindPropByID(kindPropID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
+	}
+
+	tx := server.Db.Begin()
 
 	prop.Title = strings.TrimSpace(postRequest.Title)
-	prop.KindPropId = postRequest.KindPropId
+	prop.KindPropID = kindPropID
 	prop.Name = strings.TrimSpace(postRequest.Name)
 	prop.Suffix = strings.TrimSpace(postRequest.Suffix)
 	prop.Comment = strings.TrimSpace(postRequest.Comment)
@@ -192,147 +114,176 @@ func postProps(postRequest *request.PostProp,
 
 	if err := serviceProps.Create(prop, tx); err != nil {
 		tx.Rollback()
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	// если данные приходят пачкой, через textarea, то перезапишем их в соот-ие map-ы
-	selectAsTextarea := strings.TrimSpace(postRequest.SelectAsTextarea)
-	if selectAsTextarea != "" {
-		mId, mTitle, mPos = createMapsFromMultiText(selectAsTextarea)
-	}
+	// если это select, radio, (checkbox) - то принимаем данные от values, иначе только одно значение
+	if ok, _ := manager.InArray(kindPropData.Name, manager.TagKindNumber); ok {
+		values := make([]storage.ValueProp, 0)
 
-	_, err := serviceProps.ReWriteValuesForProps(prop.PropId, tx, mId, mTitle, mPos)
-	if err != nil {
-		tx.Rollback()
-		res.Status = 500
-		res.Err = err
-		return res
+		// т.к. пришел из вне 0, вставим необходимый id св-ва (к кому он принадлежит)
+		for _, v := range postRequest.Values {
+			values = append(values, storage.ValueProp{
+				Title:  v.Title,
+				Pos:    v.Pos,
+				PropID: prop.PropID,
+			})
+		}
+
+		// если данные приходят пачкой, через textarea, то перезапишем их в соот-ие map-ы
+		selectAsTextarea := strings.TrimSpace(postRequest.SelectAsTextarea)
+		if selectAsTextarea != "" {
+			values = createMapsFromMultiText(prop.PropID, selectAsTextarea)
+		}
+
+		_, err = serviceProps.ReWriteValuesForProps(prop.PropID, tx, values)
+		if err != nil {
+			tx.Rollback()
+			logger.Warning.Println(err.Error())
+			c.JSON(500, err.Error())
+			return
+		}
 	}
 
 	tx.Commit()
 
-	propFull, err := serviceProps.GetPropFullById(prop.PropId, serviceValuesProps)
+	propFull, err := serviceProps.GetPropFullByID(prop.PropID, serviceValuesProps)
 	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	res.Status = 201
-	res.Err = nil
-	res.Data = propFull
-	return res
+	c.JSON(201, propFull)
 }
-func putPropsPropId(sPropId string, putRequest *request.PutProp,
-	mId map[string]string, mTitle map[string]string, mPos map[string]string) response.Result {
+
+// PutPropsPropID - изменение свойства
+func PutPropsPropID(c *gin.Context) {
+	sPropID := c.Param("propID")
+	putRequest := new(request.PutProp)
+
+	if err := c.ShouldBind(putRequest); err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
+	}
+
 	serviceProps := service.NewPropService()
 	serviceValuesProps := service.NewValuesPropService()
-	res := response.Result{}
-	sliceJson := helpers.GetTagsFromStruct(storage.Ad{}, "json")
+	serviceKindProp := service.NewKindPropService()
 
-	propId, err := strconv.ParseUint(sPropId, 10, 64)
+	propID, err := manager.SToUint64(sPropID)
 	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	if has, _ := helpers.InArray(strings.TrimSpace(putRequest.Name), sliceJson); has {
-		res.Status = 400
-		res.Err = errAlreadyHasReservedName
-		return res
-	}
-
-	prop, err := serviceProps.GetPropById(propId)
+	prop, err := serviceProps.GetPropByID(propID)
 	if gorm.IsRecordNotFoundError(err) {
-		res.Status = 404
-		res.Err = err
-		return res
+		c.JSON(404, err.Error())
+		return
 
 	} else if err != nil {
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	tx := server.Db.Debug().Begin()
+	kindPropID, err := manager.SToUint64(putRequest.KindPropID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
+	}
 
 	prop.Title = strings.TrimSpace(putRequest.Title)
 	prop.Name = strings.TrimSpace(putRequest.Name)
-	prop.KindPropId = putRequest.KindPropId
+	prop.KindPropID = kindPropID
 	prop.Suffix = strings.TrimSpace(putRequest.Suffix)
 	prop.Comment = strings.TrimSpace(putRequest.Comment)
 	prop.PrivateComment = strings.TrimSpace(putRequest.PrivateComment)
 
+	kindPropData, err := serviceKindProp.GetKindPropByID(kindPropID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
+	}
+
+	tx := server.Db.Begin()
+
 	if err = serviceProps.Update(prop, tx); err != nil {
 		tx.Rollback()
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	_, err = serviceProps.ReWriteValuesForProps(prop.PropId, tx, mId, mTitle, mPos)
-	if err != nil {
-		tx.Rollback()
-		res.Status = 500
-		res.Err = err
-		return res
+	// если это select, radio, (checkbox) - то принимаем данные от values, иначе только одно значение
+	if ok, _ := manager.InArray(kindPropData.Name, manager.TagKindNumber); ok {
+		if _, err = serviceProps.ReWriteValuesForProps(prop.PropID, tx, putRequest.Values); err != nil {
+			tx.Rollback()
+			logger.Warning.Println(err.Error())
+			c.JSON(500, err.Error())
+			return
+		}
 	}
 
 	tx.Commit()
 
-	propFull, err := serviceProps.GetPropFullById(prop.PropId, serviceValuesProps)
+	propFull, err := serviceProps.GetPropFullByID(prop.PropID, serviceValuesProps)
 	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	res.Status = 200
-	res.Err = nil
-	res.Data = propFull
-	return res
+	c.JSON(200, propFull)
 }
-func deletePropsPropId(sPropId string) response.Result {
+
+// DeletePropsPropID - удаление конкретного свойства
+func DeletePropsPropID(c *gin.Context) {
+	sPropID := c.Param("propID")
 	serviceProps := service.NewPropService()
-	res := response.Result{}
 
-	propId, err := strconv.ParseUint(sPropId, 10, 64)
+	propID, err := manager.SToUint64(sPropID)
 	if err != nil {
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	tx := server.Db.Debug().Begin()
-	if err := serviceProps.Delete(propId, tx); err != nil {
+	tx := server.Db.Begin()
+
+	if err := serviceProps.Delete(propID, tx); err != nil {
 		tx.Rollback()
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
+
 	tx.Commit()
 
-	res.Status = 204
-	res.Err = nil
-	res.Data = nil
-	return res
+	c.JSON(204, nil)
 }
-func createMapsFromMultiText(multiText string) (map[string]string, map[string]string, map[string]string) {
+
+// private -------------------------------------------------------------------------------------------------------------
+func createMapsFromMultiText(propID uint64, multiText string) []storage.ValueProp {
 	aStrings := strings.Split(multiText, "\n")
-	mId := make(map[string]string, 0)
-	mTitle := make(map[string]string, 0)
-	mPos := make(map[string]string, 0)
+	values := make([]storage.ValueProp, 0)
 
 	for k, v := range aStrings {
-		a := fmt.Sprint(k + 1)
+		tmpValue := storage.ValueProp{
+			Title:  strings.TrimSpace(v),
+			Pos:    uint64(k + 1),
+			PropID: propID,
+		}
 
-		mId[a] = "0"
-		mTitle[a] = strings.TrimSpace(v)
-		mPos[a] = a
+		values = append(values, tmpValue)
 	}
 
-	return mId, mTitle, mPos
+	return values
 }

@@ -1,92 +1,79 @@
 package controller
 
 import (
-	"altair/api/response"
 	"altair/pkg/logger"
+	"altair/pkg/manager"
 	"altair/pkg/service"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"strconv"
 )
 
-func GetPagesAdAdId(c *gin.Context) {
-	res, status, err := getPagesAdAdId(c.Param("adId"))
-	if err != nil {
-		c.JSON(status, err.Error())
-		return
-	}
-
-	c.JSON(status, res)
-}
-func GetPagesMain(c *gin.Context) {
-	limitSrc := c.DefaultQuery("limit", "0")
-
-	res, status, err := getPagesMain(limitSrc)
-	if err != nil {
-		c.JSON(status, err.Error())
-		return
-	}
-
-	c.JSON(status, res)
-}
-
-// private -------------------------------------------------------------------------------------------------------------
-func getPagesAdAdId(sAdId string) (*response.PageAd, int, error) {
+// GetPagesAdAdID - получение данных для страницы "продукта"
+func GetPagesAdAdID(c *gin.Context) {
+	sAdID := c.Param("adID")
 	serviceAds := service.NewAdService()
 	serviceCats := service.NewCatService()
-	pageAd := new(response.PageAd)
 
-	adId, err := strconv.ParseUint(sAdId, 10, 64)
+	adID, err := manager.SToUint64(sAdID)
 	if err != nil {
-		logger.Warning.Println(err)
-		return pageAd, 400, err
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	adFull, err := serviceAds.GetAdFullById(adId)
+	adFull, err := serviceAds.GetAdFullByID(adID, 0, 1)
 	if gorm.IsRecordNotFoundError(err) {
-		logger.Warning.Println(err)
-		return pageAd, 404, nil
+		logger.Warning.Println(err.Error())
+		c.JSON(404, err.Error())
+		return
 
 	} else if err != nil {
-		logger.Warning.Println(err)
-		return pageAd, 500, err
+		c.JSON(500, err.Error())
+		return
 	}
 
-	pageAd.AdFull = adFull
-
-	catFull, err := serviceCats.GetCatFullByID(adFull.CatId, false)
+	catFull, err := serviceCats.GetCatFullByID(adFull.CatID, false, 0)
 	if gorm.IsRecordNotFoundError(err) {
-		logger.Warning.Println(err)
-		return pageAd, 404, nil
+		c.JSON(404, err.Error())
+		return
 
 	} else if err != nil {
-		logger.Warning.Println(err)
-		return pageAd, 500, err
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	pageAd.CatFull = catFull
-
-	return pageAd, 200, nil
+	c.JSON(200, gin.H{
+		"adFull":  adFull,
+		"catFull": catFull,
+	})
 }
-func getPagesMain(sLimit string) (*response.PageMain, int, error) {
+
+// GetPagesMain - получение данных для гл. страницы
+func GetPagesMain(c *gin.Context) {
+	sLimit := c.DefaultQuery("limit", "0")
 	serviceAds := service.NewAdService()
-	pageMain := new(response.PageMain)
-	var limit uint64
+	limit := manager.LimitDefault
 
-	if tmpLimit, err := strconv.ParseUint(sLimit, 10, 64); err == nil {
-		limit = tmpLimit
-	}
+	if limitTmp, err := manager.SToUint64(sLimit); err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 
-	if limit < 1 || limit > 10 {
-		limit = 4
+	} else if limitTmp > 0 && int(limitTmp) < limit {
+		limit = int(limitTmp)
 	}
 
 	ads, err := serviceAds.GetLastAdsByOneCat(limit)
 	if err != nil {
-		return pageMain, 500, err
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	pageMain.Last.AdsFull = ads
-
-	return pageMain, 200, nil
+	c.JSON(200, gin.H{
+		"lastAdsFull": ads,
+	})
 }
+
+// private -------------------------------------------------------------------------------------------------------------

@@ -2,24 +2,27 @@ package service
 
 import (
 	"altair/api/response"
+	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
+// NewAdDetailService - фабрика, создает объект деталей объявления
 func NewAdDetailService() *AdDetailService {
 	return new(AdDetailService)
 }
 
+// AdDetailService - структура деталей объявления
 type AdDetailService struct{}
 
-func (ads AdDetailService) GetByAdId(adId uint64) ([]*storage.AdDetail, error) {
+// GetByAdID - получить данные относительно id объявления
+func (ads AdDetailService) GetByAdID(adID uint64) ([]*storage.AdDetail, error) {
 	list := make([]*storage.AdDetail, 0)
-	err := server.Db.Debug().Where("ad_id = ?", adId).Find(&list).Error
+	err := server.Db.Where("ad_id = ?", adID).Find(&list).Error
 
 	if err != nil {
 		return list, err
@@ -27,9 +30,11 @@ func (ads AdDetailService) GetByAdId(adId uint64) ([]*storage.AdDetail, error) {
 
 	return list, nil
 }
-func (ads AdDetailService) GetByAdIds(adId []uint64) ([]*storage.AdDetail, error) {
+
+// GetByAdIDs - получит данные относительно от нескольких id объявлений
+func (ads AdDetailService) GetByAdIDs(adID []uint64) ([]*storage.AdDetail, error) {
 	list := make([]*storage.AdDetail, 0)
-	err := server.Db.Debug().Where("ad_id IN (?)", adId).Find(&list).Error
+	err := server.Db.Where("ad_id IN (?)", adID).Find(&list).Error
 
 	if err != nil {
 		return list, err
@@ -37,10 +42,12 @@ func (ads AdDetailService) GetByAdIds(adId []uint64) ([]*storage.AdDetail, error
 
 	return list, nil
 }
-func (ads AdDetailService) GetDetailsExtByAdIds(adIds []uint64) ([]*response.AdDetailExt, error) {
+
+// GetDetailsExtByAdIDs - получить расширенные детали относительно от неск-ких id объявлений
+func (ads AdDetailService) GetDetailsExtByAdIDs(adIDs []uint64) ([]*response.AdDetailExt, error) {
 	list := make([]*response.AdDetailExt, 0)
 
-	if len(adIds) < 1 {
+	if len(adIDs) < 1 {
 		return list, nil
 	}
 
@@ -58,52 +65,57 @@ func (ads AdDetailService) GetDetailsExtByAdIds(adIds []uint64) ([]*response.AdD
 				LEFT JOIN props P ON P.prop_id = AD.prop_id
 			WHERE AD.ad_id`
 
-	if len(adIds) == 1 {
+	if len(adIDs) == 1 {
 		query += " = ?"
 
 	} else {
 		query += " IN (?)"
 	}
 
-	if err := server.Db.Debug().Raw(query, adIds).Scan(&list).Error; err != nil {
+	if err := server.Db.Raw(query, adIDs).Scan(&list).Error; err != nil {
 		return list, err
 	}
 
 	return list, nil
 }
+
+// Create - создание деталей
 func (ads AdDetailService) Create(list []*storage.AdDetail, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	for _, adDetail := range list {
 		if !tx.NewRecord(adDetail) {
-			return errOnNewRecordNewAdDetail
+			return manager.ErrOnNewRecordNew
 		}
 		if err := tx.Create(adDetail).Error; err != nil {
-			return errNotCreateNewAdDetail
+			return err // manager.ErrNotCreateNewAdDetail
 		}
 	}
 
 	return nil
 }
-func (ads AdDetailService) Update(adId uint64, list []*storage.AdDetail, tx *gorm.DB) error {
-	if err := ads.DeleteAllByAdId(adId, tx); err != nil {
+
+// Update - изменение детали
+func (ads AdDetailService) Update(adID uint64, list []*storage.AdDetail, tx *gorm.DB) error {
+	if err := ads.DeleteAllByAdID(adID, tx); err != nil {
 		return err
 	}
-
 	if err := ads.Create(list, tx); err != nil {
 		return err
 	}
 
 	return nil
 }
-func (ads AdDetailService) DeleteAllByAdId(adId uint64, tx *gorm.DB) error {
+
+// DeleteAllByAdID - удаление деталей относильено от id объявления
+func (ads AdDetailService) DeleteAllByAdID(adID uint64, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
-	err := server.Db.Debug().Where("ad_id = ?", adId).Delete(storage.AdDetail{}).Error
+	err := tx.Where("ad_id = ?", adID).Delete(storage.AdDetail{}).Error
 
 	if err != nil {
 		return err
@@ -111,46 +123,55 @@ func (ads AdDetailService) DeleteAllByAdId(adId uint64, tx *gorm.DB) error {
 
 	return nil
 }
-func (ads AdDetailService) BuildDataFromRequestFormAndCatProps(
-	adId uint64, postForm *url.Values, propsFull []*response.PropFull) ([]*storage.AdDetail, error) {
+
+// BuildDataFromRequestFormAndCatProps - сформировать данные из запроса формы и св-в категорий
+func (ads AdDetailService) BuildDataFromRequestFormAndCatProps(adID uint64,
+	postForm *url.Values, propsFull []*response.PropFull, images []*storage.Image) ([]*storage.AdDetail, error) {
+
 	adDetails := make([]*storage.AdDetail, 0)
 
 	for _, prop := range propsFull {
-		sValue := strings.TrimSpace(postForm.Get(prop.Name))
+		sValue := strings.TrimSpace(postForm.Get(fmt.Sprintf("p%d", prop.PropID))) // именуем по своему (для сжатия данных)
 		kind := prop.KindPropName
 
-		// проверим на обязательное св-во
+		if kind == "checkbox" || kind == "radio" || kind == "select" {
+			tmpSValue := sValue
+			sValue = "" // очистим, необходимо позже вставим (если найдем)
+
+			if tmpSValue != "" {
+				iValue, err := manager.SToUint64(tmpSValue)
+				if err != nil {
+					return adDetails, err
+				}
+
+				// посмотрим: есть ли в наличии данное значение
+				for _, val := range prop.Values {
+					if val.ValueID == iValue {
+						sValue = fmt.Sprint(val.ValueID) // берем именно значение, а не всю структуру
+						break
+					}
+				}
+			}
+
+		} else if kind == "photo" {
+			// если уже есть фото(старые), то установим значение = кол-во фоток.
+			if len(images) > 0 {
+				sValue = fmt.Sprint(len(images))
+			}
+		}
+
+		// проверим на обязательное св-во. Если есть уже картинки, то пропустить этот момент
 		if prop.IsRequire && sValue == "" {
-			return adDetails, fmt.Errorf("prop (%s) is require", kind)
+			return adDetails, fmt.Errorf("поле «%s» обязательно", prop.Title)
 		}
 		if sValue == "" {
 			continue
 		}
 
-		if kind == "checkbox" || kind == "radio" || kind == "select" {
-			iValue, err := strconv.ParseUint(sValue, 10, 64)
-			if err != nil {
-				return adDetails, err
-			}
-
-			// посмотрим: есть ли в наличии данное значение
-			var has bool
-			for _, val := range prop.Values {
-				if val.ValueId == iValue {
-					has = true
-				}
-			}
-
-			if !has {
-				return adDetails, fmt.Errorf("not found valueId(%d) on prop(%s)", iValue, kind)
-			}
-		}
-
 		adDetail := new(storage.AdDetail)
-		adDetail.AdId = adId
-		adDetail.PropId = prop.PropId
+		adDetail.AdID = adID
+		adDetail.PropID = prop.PropID
 		adDetail.Value = sValue
-
 		adDetails = append(adDetails, adDetail)
 	}
 

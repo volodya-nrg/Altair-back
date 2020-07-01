@@ -1,27 +1,28 @@
 package service
 
-import "C"
 import (
 	"altair/api/response"
-	"altair/pkg/helpers"
+	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
+// NewAdService - фабрика, создает объект "объявление"
 func NewAdService() *AdService {
 	return new(AdService)
 }
 
+// AdService - структура объявления
 type AdService struct{}
 
+// GetAds - получить все объявления
 func (as AdService) GetAds(order string) ([]*storage.Ad, error) {
 	ads := make([]*storage.Ad, 0)
-	query := server.Db.Debug()
+	query := server.Db
 
 	if order != "" {
 		query = query.Order(order)
@@ -31,22 +32,46 @@ func (as AdService) GetAds(order string) ([]*storage.Ad, error) {
 
 	return ads, err
 }
-func (as AdService) GetAdsFull(catIds []uint64, checkCountCatIds bool, order string, limit uint64, offset uint64) ([]*response.AdFull, error) {
+
+// GetAdsFull - получить все объявления (полные)
+func (as AdService) GetAdsFull(
+	catIDs []uint64,
+	checkCountCatIDs bool,
+	order string,
+	limit int,
+	offset uint64,
+	isDisabled int,
+	isApproved int) ([]*response.AdFull, error) {
+
 	ads := make([]*storage.Ad, 0)
 	adsFull := make([]*response.AdFull, 0)
 	var err error
 
-	query := server.Db.Debug().Limit(limit).Offset(offset).Order(order)
+	stm := server.Db.Limit(limit).Offset(offset).Order(order)
 
-	if checkCountCatIds && len(catIds) < 1 {
-		return adsFull, errEmptyListCatIds
+	if checkCountCatIDs && len(catIDs) < 1 {
+		return adsFull, manager.ErrEmptyListCatIDs
 	}
 
-	if len(catIds) > 0 {
-		query = query.Where("cat_id IN (?)", catIds)
+	if len(catIDs) > 0 {
+		stm = stm.Where("cat_id IN (?)", catIDs)
 	}
 
-	if err := query.Find(&ads).Error; err != nil {
+	if isDisabled > 0 {
+		stm = stm.Where("is_disabled = 1")
+
+	} else if isDisabled == 0 {
+		stm = stm.Where("is_disabled = 0")
+	}
+
+	if isApproved > 0 {
+		stm = stm.Where("is_approved = 1")
+
+	} else if isApproved == 0 {
+		stm = stm.Where("is_approved = 0")
+	}
+
+	if err := stm.Find(&ads).Error; err != nil {
 		return adsFull, err
 	}
 
@@ -61,23 +86,31 @@ func (as AdService) GetAdsFull(catIds []uint64, checkCountCatIds bool, order str
 
 	return adsFull, nil
 }
-func (as AdService) GetAdById(adId uint64) (*storage.Ad, error) {
+
+// GetAdByID - получить объявление относильно id
+func (as AdService) GetAdByID(adID uint64) (*storage.Ad, error) {
 	ad := new(storage.Ad)
-	err := server.Db.Debug().First(ad, adId).Error
+	err := server.Db.First(ad, adID).Error
 
 	return ad, err
 }
-func (as AdService) GetLastAdsByOneCat(limit uint64) ([]*response.AdFull, error) {
+
+// GetLastAdsByOneCat - получить последние объявления относильно конкретной категории
+func (as AdService) GetLastAdsByOneCat(limit int) ([]*response.AdFull, error) {
+	var err error
 	ads := make([]*storage.Ad, 0)
 	adsFull := make([]*response.AdFull, 0)
-	var err error
 	query := `
-		SELECT * 
+		SELECT *
 			FROM ads
-			WHERE cat_id = (SELECT cat_id FROM ads ORDER BY created_at DESC LIMIT 1)
+			WHERE 
+				cat_id = (SELECT cat_id FROM ads ORDER BY created_at DESC LIMIT 1) AND
+				is_disabled = 0 AND
+				is_approved = 1
+			ORDER BY created_at DESC
 			LIMIT ?`
 
-	if err := server.Db.Debug().Raw(query, limit).Scan(&ads).Error; err != nil {
+	if err := server.Db.Raw(query, limit).Scan(&ads).Error; err != nil {
 		return adsFull, err
 	}
 
@@ -92,11 +125,28 @@ func (as AdService) GetLastAdsByOneCat(limit uint64) ([]*response.AdFull, error)
 
 	return adsFull, err
 }
-func (as AdService) GetAdFullById(adId uint64) (*response.AdFull, error) {
+
+// GetAdFullByID - получить полное объявление по его ID
+func (as AdService) GetAdFullByID(adID uint64, isDisabled int, isApproved int) (*response.AdFull, error) {
 	ad := new(storage.Ad)
 	adFull := new(response.AdFull)
+	stm := server.Db
 
-	if err := server.Db.Debug().First(ad, adId).Error; err != nil {
+	if isDisabled > 0 {
+		stm = stm.Where("is_disabled = 1")
+
+	} else if isDisabled == 0 {
+		stm = stm.Where("is_disabled = 0")
+	}
+
+	if isApproved > 0 {
+		stm = stm.Where("is_approved = 1")
+
+	} else if isApproved == 0 {
+		stm = stm.Where("is_approved = 0")
+	}
+
+	if err := stm.First(ad, adID).Error; err != nil {
 		return adFull, err
 	}
 
@@ -110,33 +160,35 @@ func (as AdService) GetAdFullById(adId uint64) (*response.AdFull, error) {
 
 	return adsFull[0], nil
 }
-func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, limit uint64, offset uint64, mGetParams url.Values) ([]*response.AdFull, error) {
+
+// GetAdsFullBySearchTitle - получить полные объявления по поиску заголовка
+func (as AdService) GetAdsFullBySearchTitle(title string, catID uint64, limit uint64, offset uint64, mGetParams url.Values) ([]*response.AdFull, error) {
 	serviceProps := NewPropService()
 	ads := make([]*storage.Ad, 0)
 	adsFull := make([]*response.AdFull, 0)
 
 	// map[_:[1585741609119] catId:[53] color:[25] ferma:[asd] q:[title]]
-	if catId < 1 {
-		return getAdsFullByTitleAndCatId(title, limit, offset, 0)
+	if catID < 1 {
+		return getAdsFullByTitleAndCatID(title, limit, offset, 0)
 	}
 
 	// возьмем у данного каталога его св-ва со значениями
-	listPPropsFull, err := serviceProps.GetPropsFullByCatId(catId, true)
+	listPPropsFull, err := serviceProps.GetPropsFullByCatID(catID, true)
 	if err != nil {
 		return adsFull, err
 	}
 
 	// посмотрим какие св-ва пришли из вне
-	mPropAndValue := make(map[uint64]uint64, 0) // ключ - propId, значение - valueId
+	mPropAndValue := make(map[uint64]uint64) // ключ - propId, значение - valueId
 	for _, prop := range listPPropsFull {
 		if sVal, ok := mGetParams[prop.Name]; ok && len(sVal) > 0 {
 			sVal := sVal[0]
 			// если это какой либо список, то необходимо проверить на соответствие значений св-ва (их валидность)
-			if prop.KindPropName == "radio" || prop.KindPropName == "select" {
-				if iVal, err := strconv.ParseUint(sVal, 10, 64); err == nil {
+			if ok, _ := manager.InArray(prop.KindPropName, manager.TagKindNumber); ok {
+				if iVal, err := manager.SToUint64(sVal); err == nil {
 					for _, val := range prop.Values {
-						if val.ValueId == iVal {
-							mPropAndValue[prop.PropId] = iVal
+						if val.ValueID == iVal {
+							mPropAndValue[prop.PropID] = iVal
 							break
 						}
 					}
@@ -146,12 +198,12 @@ func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, limit ui
 	}
 
 	if len(mPropAndValue) < 1 {
-		return getAdsFullByTitleAndCatId(title, limit, offset, catId)
+		return getAdsFullByTitleAndCatID(title, limit, offset, catID)
 	}
 
 	slicePropValFilter := make([]string, 0)
-	for propId, valueId := range mPropAndValue {
-		str := fmt.Sprintf("VP.prop_id = %d AND VP.value_id = %d", propId, valueId)
+	for propID, valueID := range mPropAndValue {
+		str := fmt.Sprintf("VP.prop_id = %d AND VP.value_id = %d", propID, valueID)
 		slicePropValFilter = append(slicePropValFilter, str)
 	}
 
@@ -163,13 +215,17 @@ func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, limit ui
 				LEFT JOIN cats_props CP ON CP.cat_id = C.cat_id
 				LEFT JOIN value_props VP ON VP.prop_id = CP.prop_id
 			WHERE 
+				A.is_disabled = 0 AND
+				A.is_approved = 1 AND
 				C.cat_id = ? AND
 				A.title LIKE ? AND
 				(` + queryDop + `)
 			ORDER BY A.created_at DESC
-			LIMIT 100`
+			LIMIT ? 
+			OFFSET ?`
+
 	// LIKE "ABC%" = "ABC[ниже]" < KEY < "ABC[выше]". LIKE "%ABC" не может быть оптимизирован для исп-ия индексов
-	if err := server.Db.Debug().Raw(query, catId, "%"+title+"%").Scan(&ads).Error; err != nil {
+	if err := server.Db.Raw(query, catID, "%"+title+"%", limit, offset).Scan(&ads).Error; err != nil {
 		return adsFull, err
 	}
 
@@ -180,51 +236,147 @@ func (as AdService) GetAdsFullBySearchTitle(title string, catId uint64, limit ui
 
 	return adsFull, nil
 }
+
+// GetAdsFullByUserID - получить полные объявления относильно ID пользователя
+func (as AdService) GetAdsFullByUserID(userID uint64, order string, limit uint64, offset uint64) ([]*response.AdFull, error) {
+	ads := make([]*storage.Ad, 0)
+	adsFull := make([]*response.AdFull, 0)
+	var err error
+
+	query := server.Db.Limit(limit).Offset(offset).Order(order).Where("user_id = ?", userID)
+
+	if err := query.Find(&ads).Error; err != nil {
+		return adsFull, err
+	}
+
+	if len(ads) < 1 {
+		return adsFull, nil
+	}
+
+	adsFull, err = buildAdsFullFromAds(ads)
+	if err != nil {
+		return adsFull, err
+	}
+
+	return adsFull, nil
+}
+
+// GetAdFullByUserIDAndCatID - получить полное объявление относительно ID пользователя и ID категории
+func (as AdService) GetAdFullByUserIDAndCatID(userID uint64, adID uint64) (*response.AdFull, error) {
+	ad := new(storage.Ad)
+	adFull := new(response.AdFull)
+
+	if err := server.Db.Where("user_id = ? AND ad_id = ?", userID, adID).First(ad).Error; err != nil {
+		return adFull, err
+	}
+
+	// доп. проверка
+	if ad.AdID < 1 {
+		return adFull, manager.ErrNotFoundAd
+	}
+
+	adsFull, err := buildAdsFullFromAds([]*storage.Ad{ad})
+	if err != nil {
+		return adFull, err
+	}
+
+	adFull = adsFull[0]
+
+	return adFull, nil
+}
+
+// GetAdsByUserID - получить объявления относительно ID пользователя
+func (as AdService) GetAdsByUserID(userID uint64) ([]*storage.Ad, error) {
+	ads := make([]*storage.Ad, 0)
+	err := server.Db.Where("user_id = ?", userID).Find(&ads).Error
+
+	return ads, err
+}
+
+// Create - создать объявление
 func (as AdService) Create(ad *storage.Ad, tx *gorm.DB) error {
-	uniqStr := helpers.RandStringRunes(5)
-	ad.Slug = fmt.Sprintf("%s_%s", helpers.TranslitRuToEn(ad.Title), uniqStr)
+	uniqStr := manager.RandStringRunes(5)
+	ad.Slug = fmt.Sprintf("%s_%s", manager.TranslitRuToEn(ad.Title), uniqStr)
 
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
-	if !server.Db.Debug().NewRecord(ad) {
-		return errOnNewRecordNewAd
+	if !server.Db.NewRecord(ad) {
+		return manager.ErrOnNewRecordNew
 	}
 	if err := tx.Create(ad).Error; err != nil {
-		return errNotCreateNewAd
+		return err //manager.ErrNotCreateNewAd
 	}
-
-	err := as.Update(ad, tx)
-	if err != nil {
+	if err := as.Update(ad, tx); err != nil {
 		return err
 	}
 
 	return nil
 }
+
+// Update - обновить обновление
 func (as AdService) Update(ad *storage.Ad, tx *gorm.DB) error {
-	ad.Slug = fmt.Sprintf("%s_%d", helpers.TranslitRuToEn(ad.Title), ad.AdId)
+	ad.Slug = fmt.Sprintf("%s_%d", manager.TranslitRuToEn(ad.Title), ad.AdID)
 
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	err := tx.Save(ad).Error
 
 	return err
 }
-func (as AdService) Delete(adId uint64, tx *gorm.DB) error {
+
+// UpdateByPhoneID - обновить объявление относительно ID телефона
+func (as AdService) UpdateByPhoneID(phoneIDOld uint64, phoneIDNew uint64, userID uint64, tx *gorm.DB) error {
+	ads := make([]*storage.Ad, 0)
+	adIDs := make([]uint64, 0)
+	var query string
+
+	if tx == nil {
+		tx = server.Db
+	}
+
+	err := tx.Where("phone_id = ? AND user_id = ?", phoneIDOld, userID).Find(&ads).Error
+	if err != nil {
+		return err
+	}
+	if len(ads) < 1 {
+		return nil
+	}
+
+	for _, v := range ads {
+		adIDs = append(adIDs, v.AdID)
+	}
+
+	// заменить id номера телефона на валидный (пришедший)
+	if phoneIDNew > 0 {
+		query = `UPDATE ads SET phone_id = ? WHERE ad_id IN (?)`
+	} else {
+		query = `UPDATE ads SET phone_id = ?, is_disabled = 1, is_approved = 0 WHERE ad_id IN (?)`
+	}
+
+	if err := tx.Exec(query, phoneIDNew, adIDs).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Delete - удалить объявление
+func (as AdService) Delete(adID uint64, tx *gorm.DB) error {
 	serviceImages := NewImageService()
 	serviceAdDetail := NewAdDetailService()
 
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
-	if err := tx.Delete(storage.Ad{}, "ad_id = ?", adId).Error; err != nil {
+	if err := tx.Delete(storage.Ad{}, "ad_id = ?", adID).Error; err != nil {
 		return err
 	}
 
-	images, err := serviceImages.GetImagesByElIdsAndOpt([]uint64{adId}, "ad")
+	images, err := serviceImages.GetImagesByElIDsAndOpt([]uint64{adID}, "ad")
 	if err != nil {
 		return err
 	}
@@ -235,18 +387,37 @@ func (as AdService) Delete(adId uint64, tx *gorm.DB) error {
 		}
 	}
 
-	if err := serviceAdDetail.DeleteAllByAdId(adId, tx); err != nil {
+	if err := serviceAdDetail.DeleteAllByAdID(adID, tx); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+// DeleteAllByUserID - удалить все объявления относительно ID пользователя
+func (as AdService) DeleteAllByUserID(userID uint64, tx *gorm.DB) error {
+	if tx == nil {
+		tx = server.Db
+	}
+
+	ads, err := as.GetAdsByUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range ads {
+		if err := as.Delete(v.AdID, tx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // private -------------------------------------------------------------------------------------------------------------
-func getAdsFullByTitleAndCatId(title string, limitSrc uint64, offsetSrc uint64, catId uint64) ([]*response.AdFull, error) {
+func getAdsFullByTitleAndCatID(title string, limitSrc uint64, offsetSrc uint64, catID uint64) ([]*response.AdFull, error) {
 	ads := make([]*storage.Ad, 0)
 	adsFull := make([]*response.AdFull, 0)
-	query := server.Db.Debug().Where("title LIKE ?", "%"+title+"%")
 	var err error
 	var limit uint64 = 10
 	var offset uint64 = 0
@@ -258,17 +429,18 @@ func getAdsFullByTitleAndCatId(title string, limitSrc uint64, offsetSrc uint64, 
 		offset = offsetSrc
 	}
 
-	query = query.Limit(limit)
+	stm := server.Db.Limit(limit).
+		Where("is_disabled = 0 AND is_approved = 1 AND title LIKE ?", "%"+title+"%")
 
 	if offset > 0 {
-		query = query.Offset(offset)
+		stm = stm.Offset(offset)
 	}
 
-	if catId > 0 {
-		query = query.Where("cat_id = ?", catId)
+	if catID > 0 {
+		stm = stm.Where("cat_id = ?", catID)
 	}
 
-	if err := query.Find(&ads).Error; err != nil {
+	if err := stm.Find(&ads).Error; err != nil {
 		return adsFull, err
 	}
 
@@ -279,44 +451,41 @@ func getAdsFullByTitleAndCatId(title string, limitSrc uint64, offsetSrc uint64, 
 
 	return adsFull, nil
 }
-
 func buildAdsFullFromAds(ads []*storage.Ad) ([]*response.AdFull, error) {
 	serviceImages := NewImageService()
 	serviceAdDetails := NewAdDetailService()
 	adsFull := make([]*response.AdFull, 0)
-	adIds := make([]uint64, 0)
-	catIds := make([]uint64, 0)
+	adIDs := make([]uint64, 0)
 
 	if len(ads) < 1 {
 		return adsFull, nil
 	}
 
 	for _, ad := range ads {
-		adIds = append(adIds, ad.AdId)
+		adIDs = append(adIDs, ad.AdID)
 		adFull := new(response.AdFull)
 		adFull.Ad = ad
 		adsFull = append(adsFull, adFull)
-		catIds = append(catIds, ad.CatId)
 	}
 
-	images, err := serviceImages.GetImagesByElIdsAndOpt(adIds, "ad")
+	images, err := serviceImages.GetImagesByElIDsAndOpt(adIDs, "ad")
 	if err != nil {
 		return adsFull, err
 	}
 
-	adDetailsExt, err := serviceAdDetails.GetDetailsExtByAdIds(adIds)
+	adDetailsExt, err := serviceAdDetails.GetDetailsExtByAdIDs(adIDs)
 	if err != nil {
 		return adsFull, err
 	}
 
 	for _, adFull := range adsFull {
 		for _, image := range images {
-			if image.ElId == adFull.AdId {
+			if image.ElID == adFull.AdID {
 				adFull.Images = append(adFull.Images, image)
 			}
 		}
 		for _, detailExt := range adDetailsExt {
-			if detailExt.AdId == adFull.AdId {
+			if detailExt.AdID == adFull.AdID {
 				adFull.DetailsExt = append(adFull.DetailsExt, detailExt)
 			}
 		}

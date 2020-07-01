@@ -1,8 +1,7 @@
 package request
 
+// PutAd - структура запроса на изменение объявления
 type PutAd struct {
 	PostAd
-	AdId            uint64   `form:"adId" binding:"required"`
-	IsDisabled      bool     `form:"isDisabled"`
-	FilesAlreadyHas []string `form:"filesAlreadyHas[]"`
+	AdID uint64 `form:"adId" binding:"required"`
 }

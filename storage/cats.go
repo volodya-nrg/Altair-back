@@ -1,10 +1,11 @@
 package storage
 
+// Cat - структура таблицы категорий
 type Cat struct {
-	CatId               uint64 `json:"catId" gorm:"primary_key;column:cat_id"`
+	CatID               uint64 `json:"catId" gorm:"primary_key;column:cat_id"`
 	Name                string `json:"name" gorm:"column:name"`
 	Slug                string `json:"slug" gorm:"column:slug"`
-	ParentId            uint64 `json:"parentId" gorm:"column:parent_id"`
+	ParentID            uint64 `json:"parentId" gorm:"column:parent_id"`
 	Pos                 uint64 `json:"pos" gorm:"column:pos"`
 	IsDisabled          bool   `json:"isDisabled" gorm:"column:is_disabled"`
 	PriceAlias          string `json:"priceAlias" gorm:"column:price_alias"`

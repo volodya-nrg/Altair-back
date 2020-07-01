@@ -2,6 +2,7 @@ package response
 
 import "altair/storage"
 
+// PropFull - структура ответа, свойство (полное)
 type PropFull struct {
 	*storage.Prop
 	KindPropName  string               `json:"kindPropName" gorm:"column:kind_prop_name"`

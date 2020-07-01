@@ -7,11 +7,15 @@ import (
 )
 
 var (
-	Info    *log.Logger
+	// Info - информирующий логгер
+	Info *log.Logger
+	// Warning - предупреждающий логгер
 	Warning *log.Logger
-	Error   *log.Logger
+	// Error - логгер ошибки
+	Error *log.Logger
 )
 
+// Init - ф-ия уставновки логгера
 func Init(infoHandle io.Writer, warningHandle io.Writer, errorHandle io.Writer) {
 	green := color.New(color.FgGreen).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()

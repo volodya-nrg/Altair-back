@@ -1,56 +1,68 @@
 package service
 
 import (
+	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
 	"github.com/jinzhu/gorm"
 )
 
+// NewKindPropService - фабрика, создает объект вида свойства
 func NewKindPropService() *KindPropService {
 	return new(KindPropService)
 }
 
+// KindPropService - структура вида свойства
 type KindPropService struct{}
 
+// GetKindProps - получить виды свойств
 func (ks KindPropService) GetKindProps(orderBy string) ([]*storage.KindProp, error) {
 	props := make([]*storage.KindProp, 0)
-	err := server.Db.Debug().Order(orderBy).Find(&props).Error // сортировка нужна
+	err := server.Db.Order(orderBy).Find(&props).Error // сортировка нужна
 
 	return props, err
 }
-func (ks KindPropService) GetKindPropById(kindPropId uint64) (*storage.KindProp, error) {
+
+// GetKindPropByID - получить вид свойства относительно его ID
+func (ks KindPropService) GetKindPropByID(kindPropID uint64) (*storage.KindProp, error) {
 	prop := new(storage.KindProp)
-	err := server.Db.Debug().First(prop, kindPropId).Error
+	err := server.Db.First(prop, kindPropID).Error
 
 	return prop, err
 }
+
+// Create - создать вид свойства
 func (ks KindPropService) Create(prop *storage.KindProp, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
-	if !server.Db.Debug().NewRecord(prop) {
-		return errOnNewRecordNewKindProp
+	if !server.Db.NewRecord(prop) {
+		return manager.ErrOnNewRecordNew
 	}
 
 	err := tx.Create(prop).Error
 
 	return err
 }
+
+// Update - изменить вид свойства
 func (ks KindPropService) Update(prop *storage.KindProp, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	err := tx.Save(prop).Error
 
 	return err
 }
-func (ks KindPropService) Delete(kindPropId uint64, tx *gorm.DB) error {
+
+// Delete - удалить вид свойства
+func (ks KindPropService) Delete(kindPropID uint64, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
-	err := tx.Delete(storage.KindProp{}, "kind_prop_id = ?", kindPropId).Error
+	err := tx.Delete(storage.KindProp{}, "kind_prop_id = ?", kindPropID).Error
 
 	return err
 }

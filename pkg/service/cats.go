@@ -1,33 +1,46 @@
 package service
 
 import (
+	"altair/api/request"
 	"altair/api/response"
-	"altair/pkg/helpers"
+	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
 	"github.com/jinzhu/gorm"
 	"reflect"
-	"strconv"
-	"strings"
 )
 
+// NewCatService - фабрика, создает объект категории
 func NewCatService() *CatService {
 	return new(CatService)
 }
 
+// CatService - структура категории
 type CatService struct{}
 
-func (cs CatService) GetCats() ([]*storage.Cat, error) {
+// GetCats - получить все категории
+func (cs CatService) GetCats(isDisabled int) ([]*storage.Cat, error) {
 	cats := make([]*storage.Cat, 0)
 
 	// порядок важен: parent_id asc, pos asc, cat_id asc
-	err := server.Db.Debug().Order("parent_id asc, pos asc, cat_id asc").Find(&cats).Error
+	stm := server.Db.Order("parent_id asc, pos asc, cat_id asc")
+
+	if isDisabled > 0 {
+		stm = stm.Where("is_disabled = 1")
+
+	} else if isDisabled == 0 {
+		stm = stm.Where("is_disabled = 0")
+	}
+
+	err := stm.Find(&cats).Error
 	if err != nil {
 		return cats, err
 	}
 
 	return cats, err
 }
+
+// GetCatsFullAsTree - получить полные данные о категорий в виде дерева
 func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.CatTreeFull {
 	treeFull := new(response.CatTreeFull)
 
@@ -35,11 +48,11 @@ func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.
 		tmp := new(response.CatTreeFull)
 		tmp.СatFull = catFull
 
-		if catFull.CatId > 0 {
-			if catFull.ParentId == 0 {
+		if catFull.CatID > 0 {
+			if catFull.ParentID == 0 {
 				treeFull.Childes = append(treeFull.Childes, tmp)
 
-			} else if catFull.ParentId > 0 {
+			} else if catFull.ParentID > 0 {
 				cs.buildTreeFullWalk(treeFull, *tmp)
 			}
 		}
@@ -47,18 +60,20 @@ func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.
 
 	return treeFull
 }
+
+// GetCatsAsTree - получить категории в виде дерева
 func (cs CatService) GetCatsAsTree(cats []*storage.Cat) *response.CatTree {
 	tree := new(response.CatTree)
 
 	for _, cat := range cats {
-		if cat.CatId > 0 {
+		if cat.CatID > 0 {
 			tmp := new(response.CatTree)
 			tmp.Cat = cat
 
-			if cat.ParentId == 0 {
+			if cat.ParentID == 0 {
 				tree.Childes = append(tree.Childes, tmp)
 
-			} else if cat.ParentId > 0 {
+			} else if cat.ParentID > 0 {
 				cs.buildTreeWalk(tree, *tmp)
 			}
 		}
@@ -66,120 +81,115 @@ func (cs CatService) GetCatsAsTree(cats []*storage.Cat) *response.CatTree {
 
 	return tree
 }
-func (cs CatService) GetCatByID(catId uint64) (*storage.Cat, error) {
-	pCat := new(storage.Cat)
-	err := server.Db.Debug().First(pCat, catId).Error // проверяется в контроллере
 
-	return pCat, err
+// GetCatByID - получить данные об конкретной категории
+func (cs CatService) GetCatByID(catID uint64, isDisabled int) (*storage.Cat, error) {
+	cat := new(storage.Cat)
+	stm := server.Db
+
+	if isDisabled > 0 {
+		stm = stm.Where("is_disabled = 1")
+
+	} else if isDisabled == 0 {
+		stm = stm.Where("is_disabled = 0")
+	}
+
+	err := stm.First(cat, catID).Error // проверяется в контроллере
+
+	return cat, err
 }
-func (cs CatService) GetCatFullByID(catId uint64, withPropsOnlyFiltered bool) (*response.СatFull, error) {
+
+// GetCatFullByID - получить полные данные об конкретной категории
+func (cs CatService) GetCatFullByID(catID uint64, withPropsOnlyFiltered bool, isDisabled int) (*response.СatFull, error) {
 	serviceProps := NewPropService()
 	catFull := new(response.СatFull)
 
-	pCat, err := cs.GetCatByID(catId)
+	cat, err := cs.GetCatByID(catID, isDisabled)
 	if err != nil {
 		return catFull, err
 	}
 
-	propsFull, err := serviceProps.GetPropsFullByCatId(catId, withPropsOnlyFiltered)
+	propsFull, err := serviceProps.GetPropsFullByCatID(catID, withPropsOnlyFiltered)
 	if err != nil {
 		return catFull, err
 	}
 
-	catFull.Cat = pCat
+	catFull.Cat = cat
 	catFull.PropsFull = propsFull
 
 	return catFull, nil
 }
+
+// Create - создать категорию
 func (cs CatService) Create(cat *storage.Cat, tx *gorm.DB) error {
-	cat.Slug = helpers.TranslitRuToEn(cat.Name)
+	cat.Slug = manager.TranslitRuToEn(cat.Name)
 
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
-	if !server.Db.Debug().NewRecord(cat) {
-		return errNotCreateNewCat
+
+	if !server.Db.NewRecord(cat) {
+		return manager.ErrNotCreateNewCat
 	}
 
 	err := tx.Create(cat).Error
 
 	return err
 }
+
+// Update - изменить категорию
 func (cs CatService) Update(cat *storage.Cat, tx *gorm.DB) error {
-	cat.Slug = helpers.TranslitRuToEn(cat.Name)
+	cat.Slug = manager.TranslitRuToEn(cat.Name)
 
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	err := tx.Save(cat).Error
 
 	return err
 }
-func (cs CatService) Delete(catId uint64, tx *gorm.DB) error {
+
+// Delete - удалить категорию
+func (cs CatService) Delete(catID uint64, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
-	if err := tx.Where("cat_id = ?", catId).Delete(storage.Cat{}).Error; err != nil {
+	if err := tx.Where("cat_id = ?", catID).Delete(storage.Cat{}).Error; err != nil {
 		return err
 	}
-	if err := cs.deleteFromCatsPropsByCatId(catId, tx); err != nil {
+	if err := cs.deleteFromCatsPropsByCatID(catID, tx); err != nil {
 		return err
 	}
 
 	return nil
 }
-func (cs CatService) ReWriteCatsProps(
-	catId uint64,
-	tx *gorm.DB,
-	mPropId map[string]string,
-	mPos map[string]string,
-	mIsRequire map[string]string,
-	mIsCanAsFilter map[string]string,
-	mComment map[string]string) ([]*storage.CatProp, error) {
 
+// ReWriteCatsProps - перезаписать свойства к конкретной категории
+func (cs CatService) ReWriteCatsProps(catID uint64, tx *gorm.DB, propsAssignedForCat []request.PropAssignedForCat) ([]*storage.CatProp, error) {
 	list := make([]*storage.CatProp, 0)
 
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	tbl := tx.Table("cats_props")
 
-	if err := cs.deleteFromCatsPropsByCatId(catId, nil); err != nil {
+	if err := cs.deleteFromCatsPropsByCatID(catID, nil); err != nil {
 		return list, err
 	}
 
-	for k, sPropId := range mPropId {
-		iPropId, err := strconv.ParseUint(sPropId, 10, 64)
-		if err != nil {
-			return list, err
-		}
-
+	for _, propAssignedForCat := range propsAssignedForCat {
 		catProp := new(storage.CatProp)
-		catProp.CatId = catId
-		catProp.PropId = iPropId
-
-		if val, found := mPos[k]; found {
-			if iPos, err := strconv.ParseUint(val, 10, 64); err == nil && iPos > 0 {
-				catProp.Pos = iPos
-			}
-		}
-
-		if val, found := mIsRequire[k]; found {
-			catProp.IsRequire = val == "true"
-		}
-
-		if val, found := mIsCanAsFilter[k]; found {
-			catProp.IsCanAsFilter = val == "true"
-		}
-
-		if val, found := mComment[k]; found {
-			catProp.Comment = strings.TrimSpace(val)
-		}
+		catProp.CatID = catID
+		catProp.PropID = propAssignedForCat.PropID
+		catProp.Pos = propAssignedForCat.Pos
+		catProp.IsRequire = propAssignedForCat.IsRequire
+		catProp.IsCanAsFilter = propAssignedForCat.IsCanAsFilter
+		catProp.Comment = propAssignedForCat.Comment
 
 		if !tbl.NewRecord(catProp) {
-			return list, errNotCreateNewCatProp
+			return list, manager.ErrNotCreateNewCatProp
 		}
 
 		if err := tbl.Create(catProp).Error; err != nil {
@@ -191,16 +201,18 @@ func (cs CatService) ReWriteCatsProps(
 
 	return list, nil
 }
-func (cs CatService) GetAncestors(catsTree *response.CatTree, findCatId uint64) []storage.Cat { // предки
+
+// GetAncestors - получить предков категории
+func (cs CatService) GetAncestors(catsTree *response.CatTree, findCatID uint64) []storage.Cat { // предки
 	list := make([]storage.Cat, 0)
 
 	for _, branch := range catsTree.Childes {
-		if branch.CatId == findCatId {
+		if branch.CatID == findCatID {
 			list = append(list, *branch.Cat)
 			return list
 		}
 		if len(branch.Childes) > 0 {
-			res := cs.GetAncestors(branch, findCatId)
+			res := cs.GetAncestors(branch, findCatID)
 
 			if len(res) > 0 {
 				list = append(list, *branch.Cat)
@@ -212,23 +224,25 @@ func (cs CatService) GetAncestors(catsTree *response.CatTree, findCatId uint64) 
 
 	return list
 }
-func (cs CatService) GetDescendants(catsTree *response.CatTree, findCatId uint64) *response.CatTree { // потомки
+
+// GetDescendants - получить потомков категории
+func (cs CatService) GetDescendants(catsTree *response.CatTree, findCatID uint64) *response.CatTree { // потомки
 	result := new(response.CatTree)
 
-	if findCatId == 0 {
+	if findCatID == 0 {
 		return catsTree
 	}
 
-	if !reflect.ValueOf(catsTree.Cat).IsNil() && catsTree.Cat.CatId == findCatId {
+	if !reflect.ValueOf(catsTree.Cat).IsNil() && catsTree.Cat.CatID == findCatID {
 		return catsTree
 	}
 
 	for _, branch := range catsTree.Childes {
-		if branch.Cat.CatId == findCatId {
+		if branch.Cat.CatID == findCatID {
 			return branch
 
 		} else if len(branch.Childes) > 0 {
-			if res := cs.GetDescendants(branch, findCatId); !reflect.ValueOf(res.Cat).IsNil() && res.Cat.CatId > 0 {
+			if res := cs.GetDescendants(branch, findCatID); !reflect.ValueOf(res.Cat).IsNil() && res.Cat.CatID > 0 {
 				return res
 			}
 		}
@@ -236,20 +250,22 @@ func (cs CatService) GetDescendants(catsTree *response.CatTree, findCatId uint64
 
 	return result
 }
-func (cs CatService) GetIdsFromCatsTree(catsTree *response.CatTree) []uint64 {
+
+// GetIDsFromCatsTree - получить ID категорий из дерева категорий
+func (cs CatService) GetIDsFromCatsTree(catsTree *response.CatTree) []uint64 {
 	result := make([]uint64, 0)
 	uniq := make([]uint64, 0)
 
 	if !reflect.ValueOf(catsTree.Cat).IsNil() {
-		result = append(result, catsTree.CatId)
+		result = append(result, catsTree.CatID)
 	}
 
 	for _, v := range catsTree.Childes {
-		if v.CatId > 0 {
-			result = append(result, v.CatId)
+		if v.CatID > 0 {
+			result = append(result, v.CatID)
 		}
 		if len(v.Childes) > 0 {
-			result = append(result, cs.GetIdsFromCatsTree(v)...)
+			result = append(result, cs.GetIDsFromCatsTree(v)...)
 		}
 	}
 
@@ -269,10 +285,30 @@ func (cs CatService) GetIdsFromCatsTree(catsTree *response.CatTree) []uint64 {
 	return uniq
 }
 
+// IsLeaf - является ли категория "листом" (конечной)
+func (cs CatService) IsLeaf(catID uint64) (bool, error) {
+	var count uint64
+	var result bool
+	query := `
+		SELECT COUNT(C.cat_id)
+			FROM cats AS C
+			WHERE 
+        		C.cat_id = ?
+            	AND (SELECT COUNT(*) FROM cats WHERE parent_id != C.cat_id AND cat_id = C.parent_id) > 0`
+
+	if err := server.Db.Raw(query, catID).Count(&count).Error; err != nil {
+		return result, err
+	}
+
+	result = count == 1
+
+	return result, nil
+}
+
 // private -------------------------------------------------------------------------------------------------------------
 func (cs CatService) buildTreeWalk(branches *response.CatTree, inputCat response.CatTree) {
 	for _, branch := range branches.Childes {
-		if branch.CatId == inputCat.ParentId {
+		if branch.CatID == inputCat.ParentID {
 			branch.Childes = append(branch.Childes, &inputCat)
 
 		} else if len(branch.Childes) > 0 {
@@ -282,7 +318,7 @@ func (cs CatService) buildTreeWalk(branches *response.CatTree, inputCat response
 }
 func (cs CatService) buildTreeFullWalk(branches *response.CatTreeFull, inputCat response.CatTreeFull) {
 	for _, branch := range branches.Childes {
-		if branch.CatId == inputCat.ParentId {
+		if branch.CatID == inputCat.ParentID {
 			branch.Childes = append(branch.Childes, &inputCat)
 
 		} else if len(branch.Childes) > 0 {
@@ -290,17 +326,17 @@ func (cs CatService) buildTreeFullWalk(branches *response.CatTreeFull, inputCat 
 		}
 	}
 }
-func (cs CatService) deleteFromCatsPropsByCatId(catId uint64, tx *gorm.DB) error {
+func (cs CatService) deleteFromCatsPropsByCatID(catID uint64, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
-	err := tx.Table("cats_props").Delete(storage.CatProp{}, "cat_id = ?", catId).Error
+	err := tx.Table("cats_props").Delete(storage.CatProp{}, "cat_id = ?", catID).Error
 
 	return err
 }
 
-// ------------------
+// ReverseCat - сортировка списка (категорий)
 type ReverseCat []*storage.Cat
 
 func (c ReverseCat) Len() int {

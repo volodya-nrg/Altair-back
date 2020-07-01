@@ -1,6 +1,7 @@
 package request
 
+// PutKindProp - структура запроса изменение вида свойства
 type PutKindProp struct {
-	KindPropId uint64 `form:"kindPropId" binding:"required"`
+	KindPropID uint64 `form:"kindPropId" binding:"required"`
 	Name       string `form:"name" binding:"required"`
 }

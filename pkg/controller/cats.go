@@ -2,298 +2,229 @@ package controller
 
 import (
 	"altair/api/request"
-	"altair/api/response"
 	"altair/pkg/logger"
+	"altair/pkg/manager"
 	"altair/pkg/service"
 	"altair/server"
 	"altair/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"strconv"
 	"strings"
 )
 
+// GetCats - получение всех категорий
 func GetCats(c *gin.Context) {
 	asTree := c.DefaultQuery("asTree", "false")
-	res := response.Result{}
-
-	res = getCats(asTree == "true")
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func GetCatsCatId(c *gin.Context) {
-	withPropsOnlyFiltered := c.DefaultQuery("withPropsOnlyFiltered", "false")
-
-	res := getCatsCatId(c.Param("catId"), withPropsOnlyFiltered == "true")
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func PostCats(c *gin.Context) {
-	pPostRequest := new(request.PostCat)
-
-	if err := c.ShouldBind(pPostRequest); err != nil {
-		logger.Warning.Println(err)
-		c.JSON(400, err.Error())
-		return
-	}
-
-	mPropId := c.PostFormMap("propId")
-	mPos := c.PostFormMap("pos")
-	mIsRequire := c.PostFormMap("isRequire")
-	mIsCanAsFilter := c.PostFormMap("isCanAsFilter")
-	mComment := c.PostFormMap("comment")
-
-	res := postCats(pPostRequest, mPropId, mPos, mIsRequire, mIsCanAsFilter, mComment)
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func PutCatsCatId(c *gin.Context) {
-	pPutRequest := new(request.PutCat)
-
-	if err := c.ShouldBind(pPutRequest); err != nil {
-		logger.Warning.Println(err)
-		c.JSON(400, err.Error())
-		return
-	}
-
-	mPropId := c.PostFormMap("propId")
-	mPos := c.PostFormMap("pos")
-	mIsRequire := c.PostFormMap("isRequire")
-	mIsCanAsFilter := c.PostFormMap("isCanAsFilter")
-	mComment := c.PostFormMap("comment")
-
-	res := putCatsCatId(c.Param("catId"), pPutRequest, mPropId, mPos, mIsRequire, mIsCanAsFilter, mComment)
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func DeleteCatsCatId(c *gin.Context) {
-	res := deleteCatsCatId(c.Param("catId"))
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-
-// private -------------------------------------------------------------------------------------------------------------
-func getCats(isAsTree bool) response.Result {
 	serviceCats := service.NewCatService()
-	res := response.Result{}
+	isAsTree := asTree == "true"
 
-	cats, err := serviceCats.GetCats()
+	cats, err := serviceCats.GetCats(0)
 	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
-
-	res.Status = 200
-	res.Err = nil
-	res.Data = cats
 
 	if isAsTree {
-		res.Data = serviceCats.GetCatsAsTree(cats)
+		c.JSON(200, serviceCats.GetCatsAsTree(cats))
+		return
 	}
 
-	return res
+	c.JSON(200, cats)
 }
-func getCatsCatId(sCatId string, withPropsOnlyFiltered bool) response.Result {
-	serviceCats := service.NewCatService()
-	res := response.Result{}
 
-	catId, err := strconv.ParseUint(sCatId, 10, 64)
-	if err != nil {
-		res.Status = 400
-		res.Err = err
-		return res
+// GetCatsCatID - получение одной категории
+func GetCatsCatID(c *gin.Context) {
+	roleIs := c.MustGet("roleIs").(string)
+	sCatID := c.Param("catID")
+	sWithPropsOnlyFiltered := c.DefaultQuery("withPropsOnlyFiltered", "false")
+	serviceCats := service.NewCatService()
+	isDisabledCat := 0
+
+	if roleIs == manager.IsAdmin {
+		isDisabledCat = -1
 	}
 
-	catFull, err := serviceCats.GetCatFullByID(catId, withPropsOnlyFiltered)
+	catID, err := manager.SToUint64(sCatID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
+	}
+
+	catFull, err := serviceCats.GetCatFullByID(catID, sWithPropsOnlyFiltered == "true", isDisabledCat)
 	if gorm.IsRecordNotFoundError(err) {
-		res.Status = 404
-		res.Err = err
-		return res
+		c.JSON(404, err.Error())
+		return
 
 	} else if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	res.Status = 200
-	res.Err = nil
-	res.Data = catFull
-	return res
+	c.JSON(200, catFull)
 }
-func postCats(
-	postRequest *request.PostCat,
-	mPropId map[string]string,
-	mPos map[string]string,
-	mIsRequire map[string]string,
-	mIsCanAsFilter map[string]string,
-	mComment map[string]string) response.Result {
+
+// PostCats - создание одной категории
+func PostCats(c *gin.Context) {
+	postRequest := new(request.PostCat)
+
+	if err := c.ShouldBind(postRequest); err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
+	}
 
 	serviceCats := service.NewCatService()
-	res := response.Result{}
-	pCat := new(storage.Cat)
-	tx := server.Db.Debug().Begin()
 
-	pCat.Name = strings.TrimSpace(postRequest.Name)
-	pCat.ParentId = postRequest.ParentId
-	pCat.Pos = postRequest.Pos
-	pCat.PriceAlias = strings.TrimSpace(postRequest.PriceAlias)
-	pCat.PriceSuffix = strings.TrimSpace(postRequest.PriceSuffix)
-	pCat.TitleHelp = strings.TrimSpace(postRequest.TitleHelp)
-	pCat.TitleComment = strings.TrimSpace(postRequest.TitleComment)
-	pCat.IsAutogenerateTitle = postRequest.IsAutogenerateTitle
-
-	if pCat.Pos < 1 {
-		pCat.Pos = 1
+	parentID, err := manager.SToUint64(postRequest.ParentID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	if err := serviceCats.Create(pCat, tx); err != nil {
+	cat := new(storage.Cat)
+	cat.Name = strings.TrimSpace(postRequest.Name)
+	cat.ParentID = parentID
+	cat.Pos = postRequest.Pos
+	cat.PriceAlias = strings.TrimSpace(postRequest.PriceAlias)
+	cat.PriceSuffix = strings.TrimSpace(postRequest.PriceSuffix)
+	cat.TitleHelp = strings.TrimSpace(postRequest.TitleHelp)
+	cat.TitleComment = strings.TrimSpace(postRequest.TitleComment)
+	cat.IsAutogenerateTitle = postRequest.IsAutogenerateTitle
+
+	if cat.Pos < 1 {
+		cat.Pos = 1
+	}
+
+	tx := server.Db.Begin()
+
+	if err := serviceCats.Create(cat, tx); err != nil {
 		tx.Rollback()
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
 	// обработаем св-ва для категории
-	if _, err := serviceCats.ReWriteCatsProps(pCat.CatId, tx, mPropId, mPos, mIsRequire, mIsCanAsFilter, mComment); err != nil {
+	if _, err := serviceCats.ReWriteCatsProps(cat.CatID, tx, postRequest.PropsAssignedForCat); err != nil {
 		tx.Rollback()
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
 	tx.Commit()
 
-	catFull, err := serviceCats.GetCatFullByID(pCat.CatId, false)
+	catFull, err := serviceCats.GetCatFullByID(cat.CatID, false, -1)
 	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	res.Status = 201
-	res.Err = nil
-	res.Data = catFull
-	return res
+	c.JSON(201, catFull)
 }
-func putCatsCatId(
-	sCatId string,
-	putRequest *request.PutCat,
-	mPropId map[string]string,
-	mPos map[string]string,
-	mIsRequire map[string]string,
-	mIsCanAsFilter map[string]string,
-	mComment map[string]string) response.Result {
+
+// PutCatsCatID - редактирование одной категории
+func PutCatsCatID(c *gin.Context) {
+	sCatID := c.Param("catID")
+	putRequest := new(request.PutCat)
+
+	if err := c.ShouldBind(putRequest); err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
+	}
 
 	serviceCats := service.NewCatService()
-	res := response.Result{}
 
-	catId, err := strconv.ParseUint(sCatId, 10, 64)
+	catID, err := manager.SToUint64(sCatID)
 	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	pCat, err := serviceCats.GetCatByID(catId)
+	cat, err := serviceCats.GetCatByID(catID, -1)
 	if gorm.IsRecordNotFoundError(err) {
-		res.Status = 404
-		res.Err = err
-		return res
+		c.JSON(404, err.Error())
+		return
 
 	} else if err != nil {
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	tx := server.Db.Debug().Begin()
+	tx := server.Db.Begin()
 
-	pCat.Name = strings.TrimSpace(putRequest.Name)
-	pCat.ParentId = putRequest.ParentId
-	pCat.Pos = putRequest.Pos
-	pCat.IsDisabled = putRequest.IsDisabled
-	pCat.PriceAlias = strings.TrimSpace(putRequest.PriceAlias)
-	pCat.PriceSuffix = strings.TrimSpace(putRequest.PriceSuffix)
-	pCat.TitleHelp = strings.TrimSpace(putRequest.TitleHelp)
-	pCat.TitleComment = strings.TrimSpace(putRequest.TitleComment)
-	pCat.IsAutogenerateTitle = putRequest.IsAutogenerateTitle
+	cat.Name = strings.TrimSpace(putRequest.Name)
+	cat.ParentID = putRequest.ParentID
+	cat.Pos = putRequest.Pos
+	cat.IsDisabled = putRequest.IsDisabled
+	cat.PriceAlias = strings.TrimSpace(putRequest.PriceAlias)
+	cat.PriceSuffix = strings.TrimSpace(putRequest.PriceSuffix)
+	cat.TitleHelp = strings.TrimSpace(putRequest.TitleHelp)
+	cat.TitleComment = strings.TrimSpace(putRequest.TitleComment)
+	cat.IsAutogenerateTitle = putRequest.IsAutogenerateTitle
 
-	if pCat.Pos < 1 {
-		pCat.Pos = 1
+	if cat.Pos < 1 {
+		cat.Pos = 1
 	}
 
-	if err = serviceCats.Update(pCat, tx); err != nil {
+	if err = serviceCats.Update(cat, tx); err != nil {
 		tx.Rollback()
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	if _, err := serviceCats.ReWriteCatsProps(pCat.CatId, tx, mPropId, mPos, mIsRequire, mIsCanAsFilter, mComment); err != nil {
+	if _, err := serviceCats.ReWriteCatsProps(cat.CatID, tx, putRequest.PropsAssignedForCat); err != nil {
 		tx.Rollback()
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
 	tx.Commit()
 
-	catFull, err := serviceCats.GetCatFullByID(pCat.CatId, false)
+	catFull, err := serviceCats.GetCatFullByID(cat.CatID, false, -1)
 	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	res.Status = 200
-	res.Err = nil
-	res.Data = catFull
-	return res
+	c.JSON(200, catFull)
 }
-func deleteCatsCatId(sCatId string) response.Result {
+
+// DeleteCatsCatID - удаление одной категории
+func DeleteCatsCatID(c *gin.Context) {
+	sCatID := c.Param("catID")
 	serviceCats := service.NewCatService()
-	res := response.Result{}
 
-	catId, err := strconv.ParseUint(sCatId, 10, 64)
+	catID, err := manager.SToUint64(sCatID)
 	if err != nil {
-		res.Status = 400
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(400, err.Error())
+		return
 	}
 
-	tx := server.Db.Debug().Begin()
-	if err := serviceCats.Delete(catId, tx); err != nil {
+	tx := server.Db.Begin()
+
+	if err := serviceCats.Delete(catID, tx); err != nil {
 		tx.Rollback()
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
+
 	tx.Commit()
 
-	res.Status = 204
-	res.Err = nil
-	res.Data = nil
-	return res
+	c.JSON(204, nil)
 }
+
+// private -------------------------------------------------------------------------------------------------------------

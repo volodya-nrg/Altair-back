@@ -1,72 +1,72 @@
 package service
 
 import (
-	"altair/pkg/helpers"
+	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
-	"fmt"
 	"github.com/jinzhu/gorm"
-	"os"
 )
 
+// NewImageService - фабрика, создает объект Изображения
 func NewImageService() *ImageService {
-	imgS := new(ImageService)
-
-	imgS.relativeImgDir = "./web/images/"
-
-	return imgS
+	return new(ImageService)
 }
 
-type ImageService struct {
-	relativeImgDir string
-}
+// ImageService - структура изображения
+type ImageService struct{}
 
-func (is ImageService) GetImagesByElIdsAndOpt(elIds []uint64, opt string) ([]*storage.Image, error) {
+// GetImagesByElIDsAndOpt - получить картинки относительно ID элемента и опции
+func (is ImageService) GetImagesByElIDsAndOpt(elIDs []uint64, opt string) ([]*storage.Image, error) {
 	images := make([]*storage.Image, 0)
-	err := server.Db.Debug().Where("el_id IN (?) AND opt = ?", elIds, opt).Find(&images).Error
+	err := server.Db.Where("el_id IN (?) AND opt = ?", elIDs, opt).Find(&images).Error
 
 	return images, err
 }
-func (is ImageService) GetImageById(imgId uint64) (*storage.Image, error) {
+
+// GetImageByID - получить изображения относительно его ID
+func (is ImageService) GetImageByID(imgID uint64) (*storage.Image, error) {
 	img := new(storage.Image)
-	err := server.Db.Debug().First(img, imgId).Error // проверяется в контроллере
+	err := server.Db.First(img, imgID).Error // проверяется в контроллере
 
 	return img, err
 }
+
+// Create - создать запись об изображении
 func (is ImageService) Create(image *storage.Image, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	if !tx.NewRecord(image) {
-		return errNotCreateNewImage
+		return manager.ErrNotCreateNewImage
 	}
 
 	err := tx.Create(image).Error
 
 	return err
 }
+
+// Update - изменить запись об изображении
 func (is ImageService) Update(img *storage.Image, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	err := tx.Save(img).Error
 	return err
 }
+
+// Delete - удалить запись об изображении
 func (is ImageService) Delete(img *storage.Image, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	if err := tx.Delete(img).Error; err != nil {
 		return err
 	}
 
-	myFilepath := fmt.Sprintf("%s%s", is.relativeImgDir, img.Filepath)
-	if has := helpers.FileExists(myFilepath); has == true {
-		_ = os.Remove(myFilepath)
-	}
+	// тут по идеи надо удалить файлы с удаленного сервера
 
 	return nil
 }

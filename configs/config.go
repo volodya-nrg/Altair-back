@@ -1,23 +1,32 @@
 package configs
 
 import (
+	"altair/pkg/manager"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 )
 
-var Cfg Config
-
+// Config - структура гл. конфига
 type Config struct {
-	AppMode   string
-	DB        DbConfig
-	Mediafire MediafireConfig
+	Mode          string          `json:"mode"`
+	TokenPassword string          `json:"tokenPassword"` // секретный ключ на выдаваемый токен
+	AdminEmail    string          `json:"adminEmail"`
+	Domain        string          `json:"domain"`
+	DB            DbConfig        `json:"db"`
+	Mediafire     MediafireConfig `json:"mediafire"`
+	Email         EmailConfig     `json:"email"`
+	SMS           SMSConfig       `json:"sms"`
+	Socials       SocialsConfig   `json:"socials"`
 }
 
+// Cfg - гл. переменная конфига
+var Cfg Config
+
+// Load - ф-ия загрузки данных для конфига
 func Load(configPath string) error {
 	if configPath == "" {
-		return errors.New("empty config path")
+		return manager.ErrConfigPath
 	}
 
 	file, _ := os.Open(configPath)

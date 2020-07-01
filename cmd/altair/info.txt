@@ -1,0 +1,17 @@
+/*
+ЗАМЕТКИ:
+ - фото хранятся в табл images и в value_props (id записей в поле value). POST/PUT "files" - зарез-но
+ - sort - https://gobyexample.com/sorting
+ - INSERT INTO cats_props (cat_id, prop_id, pos, is_require, is_can_as_filter, `comment`) VALUES
+ 	- (x, 91, 3, 1, 0, '5'),\n
+ - SHOW VARIABLES WHERE variable_name = 'max_user_connections' (10)
+ - https://github.com/golang/go/wiki/SliceTricks
+ - https://godoc.org/github.com/go-playground/validator#hdr-Baked_In_Validators_and_Tags
+ - на фронте, в добавлении объявления, контролы должны быть одномерными.
+		Св-ва дефолка не должны пересекаться со св-вами динамический св-в.
+ - Role: admin, moder
+ - Цену необходимо сделать адекватной: >= нулю
+ - Установка многофункционального линтера - go get github.com/golangci/golangci-lint/cmd/golangci-lint
+    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0
+
+*/

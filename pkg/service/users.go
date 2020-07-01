@@ -1,68 +1,103 @@
 package service
 
 import (
-	"altair/pkg/helpers"
+	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
 	"github.com/jinzhu/gorm"
 	"unicode/utf8"
 )
 
+// NewUserService - фабрика, создает объект пользователя
 func NewUserService() *UserService {
 	return new(UserService)
 }
 
+// UserService - структура пользователя
 type UserService struct{}
 
-func (us UserService) Get() bool {
-	return true
-}
-func (us UserService) GetUsers() ([]*storage.User, error) {
+// GetUsers - получить пользователей
+func (us UserService) GetUsers(order string) ([]*storage.User, error) {
 	users := make([]*storage.User, 0)
-	err := server.Db.Debug().Order("created_at desc").Find(&users).Error
+	err := server.Db.Order(order).Find(&users).Error
 	return users, err
 }
-func (us UserService) GetUserByID(userId uint64) (*storage.User, error) {
+
+// GetUserByID - получить данные о пользователе относительно его ID
+func (us UserService) GetUserByID(userID uint64) (*storage.User, error) {
 	user := new(storage.User)
-	err := server.Db.Debug().First(user, userId).Error
+	err := server.Db.First(user, userID).Error
 	return user, err
 }
+
+// GetUserByEmail - получить данные о пользователе через e-mail
+func (us UserService) GetUserByEmail(userEmail string) (*storage.User, error) {
+	user := new(storage.User)
+	err := server.Db.Where("email = ?", userEmail).First(user).Error
+	return user, err
+}
+
+// GetUserByHashCheckEmail - получить данные о пользователе относительно проверочного хеша на е-мэйл
+func (us UserService) GetUserByHashCheckEmail(hash string) (*storage.User, error) {
+	user := new(storage.User)
+	err := server.Db.Where("hash_for_check_email = ?", hash).First(user).Error
+	return user, err
+}
+
+// HasUser - существует ли пользователь, проверка через валидный е-мэйл
+func (us UserService) HasUser(userEmail string) (bool, error) {
+	var count uint64
+	var result bool
+	query := `SELECT COUNT(user_id) FROM users WHERE email = ? AND is_email_confirmed = 1`
+
+	if err := server.Db.Raw(query, userEmail).Count(&count).Error; err != nil {
+		return result, err
+	}
+
+	result = count > 0
+
+	return result, nil
+}
+
+// Create - создать пользователя
 func (us UserService) Create(user *storage.User, tx *gorm.DB) error {
 	if err := validate(user); err != nil {
 		return err
 	}
-	if !server.Db.Debug().NewRecord(user) {
-		return errNotCreateNewUser
+	if !server.Db.NewRecord(user) {
+		return manager.ErrNotCreateNewUser
 	}
 
-	user.Password = helpers.HashAndSalt(user.Password)
-
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	err := tx.Create(user).Error
 
 	return err
 }
+
+// Update - изменить пользователя
 func (us UserService) Update(user *storage.User, tx *gorm.DB) error {
 	if err := validate(user); err != nil {
 		return err
 	}
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
 	err := tx.Save(user).Error
 
 	return err
 }
-func (us UserService) Delete(userId uint64, tx *gorm.DB) error {
+
+// Delete - удалить пользователя
+func (us UserService) Delete(userID uint64, tx *gorm.DB) error {
 	if tx == nil {
-		tx = server.Db.Debug()
+		tx = server.Db
 	}
 
-	if err := tx.Delete(storage.User{}, "user_id = ?", userId).Error; err != nil {
+	if err := tx.Delete(storage.User{}, "user_id = ?", userID).Error; err != nil {
 		return err
 	}
 
@@ -71,11 +106,11 @@ func (us UserService) Delete(userId uint64, tx *gorm.DB) error {
 
 // private -------------------------------------------------------------------------------------------------------------
 func validate(user *storage.User) error {
-	if !helpers.ValidateEmail(user.Email) {
-		return errNotCorrectEmail
+	if !manager.ValidateEmail(user.Email) {
+		return manager.ErrEmailNotCorrect
 	}
-	if utf8.RuneCountInString(user.Password) < minLenPassword {
-		return errPasswordIsShort
+	if utf8.RuneCountInString(user.Password) < manager.MinLenPassword {
+		return manager.ErrPasswordIsShort
 	}
 
 	return nil

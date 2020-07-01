@@ -2,191 +2,164 @@ package controller
 
 import (
 	"altair/api/request"
-	"altair/api/response"
-	"altair/pkg/helpers"
 	"altair/pkg/logger"
+	"altair/pkg/manager"
 	"altair/pkg/service"
 	"altair/server"
 	"altair/storage"
-	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
-	"mime/multipart"
-	"os"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
-var (
-	errPasswordsAreNotEqual              = errors.New("passwords are not equal")
-	errPasswordsAreNotEqualCurrentAndOld = errors.New("passwords are not equal (current, old)")
-)
-
+// GetUsers - получение всех пользователей
 func GetUsers(c *gin.Context) {
-	res := getUsers()
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
+	serviceUsers := service.NewUserService()
+
+	users, err := serviceUsers.GetUsers("created_at desc")
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	c.JSON(res.Status, res.Data)
+	c.JSON(200, users)
 }
-func GetUsersUserId(c *gin.Context) {
-	res := getUsersUserId(c.Param("userId"))
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
+
+// GetUsersUserID - получение конкретного пользователя
+func GetUsersUserID(c *gin.Context) {
+	sUserID := c.Param("userID")
+	serviceUsers := service.NewUserService()
+
+	userID, err := manager.SToUint64(sUserID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	c.JSON(res.Status, res.Data)
+	user, err := serviceUsers.GetUserByID(userID)
+	if gorm.IsRecordNotFoundError(err) {
+		c.JSON(404, err.Error())
+		return
+
+	} else if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
+	}
+
+	c.JSON(200, user)
 }
+
+// PostUsers - добавление пользователя
 func PostUsers(c *gin.Context) {
 	postRequest := new(request.PostUser)
 
 	if err := c.ShouldBind(postRequest); err != nil {
-		logger.Warning.Println(err)
+		logger.Warning.Println(err.Error())
 		c.JSON(400, err.Error())
 		return
 	}
 
-	res := postUsers(postRequest)
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
+	serviceUsers := service.NewUserService()
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	c.JSON(res.Status, res.Data)
+	password := strings.TrimSpace(postRequest.Password)
+	passwordConfirm := strings.TrimSpace(postRequest.PasswordConfirm)
+
+	if utf8.RuneCountInString(password) < manager.MinLenPassword {
+		if password != passwordConfirm {
+			c.JSON(400, manager.ErrPasswordIsShort.Error())
+			return
+		}
+	}
+	if password != passwordConfirm {
+		c.JSON(400, manager.ErrPasswordsAreNotEqual.Error())
+		return
+	}
+
+	// тут надо проверить уникальность пользователя
+	if has, err := serviceUsers.HasUser(postRequest.Email); err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
+
+	} else if has {
+		c.JSON(400, manager.ErrUserAlreadyExists.Error())
+		return
+	}
+
+	var filePath string
+	if len(form.File["files"]) > 0 {
+		file := form.File["files"][0] // только один файл
+		filePath, err = manager.UploadImage(file, manager.DirImages, c.SaveUploadedFile)
+		if err != nil {
+			logger.Warning.Println(err.Error())
+		}
+	}
+
+	user := new(storage.User)
+
+	user.Name = strings.TrimSpace(postRequest.Name)
+	user.Email = strings.TrimSpace(postRequest.Email)
+	user.Password = manager.HashAndSalt(password)
+	user.Avatar = filePath
+	user.IsEmailConfirmed = postRequest.IsEmailConfirmed
+
+	if err := serviceUsers.Create(user, nil); err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
+	}
+
+	c.JSON(201, user)
 }
-func PutUsersUserId(c *gin.Context) {
+
+// PutUsersUserID - редактирование пользователя
+func PutUsersUserID(c *gin.Context) {
+	sUserID := c.Param("userID")
 	putRequest := new(request.PutUser)
 
 	if err := c.ShouldBind(putRequest); err != nil {
-		logger.Warning.Println(err)
+		logger.Warning.Println(err.Error())
 		c.JSON(400, err.Error())
+		return
+	}
+
+	userID, err := manager.SToUint64(sUserID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
 		return
 	}
 
 	form, err := c.MultipartForm()
 	if err != nil {
-		logger.Warning.Println(err)
+		logger.Warning.Println(err.Error())
 		c.JSON(500, err.Error())
 		return
 	}
 
-	res := putUsersUserId(c.Param("userId"), putRequest, form, c.SaveUploadedFile)
-	if res.Err != nil {
-		logger.Warning.Println(res.Err.Error())
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-func DeleteUsersUserId(c *gin.Context) {
-	res := deleteUsersUserId(c.Param("userId"))
-	if res.Err != nil {
-		res.Data = res.Err.Error()
-	}
-
-	c.JSON(res.Status, res.Data)
-}
-
-// private -------------------------------------------------------------------------------------------------------------
-func getUsers() response.Result {
 	serviceUsers := service.NewUserService()
-	res := response.Result{}
 
-	users, err := serviceUsers.GetUsers()
-	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
-	}
-
-	res.Status = 200
-	res.Err = nil
-	res.Data = users
-	return res
-}
-func getUsersUserId(sUserId string) response.Result {
-	serviceUsers := service.NewUserService()
-	res := response.Result{}
-
-	userId, err := strconv.ParseUint(sUserId, 10, 64)
-	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
-	}
-
-	user, err := serviceUsers.GetUserByID(userId)
+	user, err := serviceUsers.GetUserByID(userID)
 	if gorm.IsRecordNotFoundError(err) {
-		res.Status = 404
-		res.Err = err
-		return res
+		c.JSON(404, err.Error())
+		return
 
 	} else if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
-
-	res.Status = 200
-	res.Err = nil
-	res.Data = user
-	return res
-}
-func postUsers(postRequest *request.PostUser) response.Result {
-	serviceUsers := service.NewUserService()
-	res := response.Result{}
-
-	if postRequest.Password != postRequest.PasswordConfirm {
-		res.Status = 400
-		res.Err = errPasswordsAreNotEqual
-		return res
-	}
-
-	user := new(storage.User)
-	user.Email = postRequest.Email
-	user.Password = postRequest.Password
-
-	if err := serviceUsers.Create(user, nil); err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
-	}
-
-	res.Status = 201
-	res.Err = nil
-	res.Data = user
-	return res
-}
-func putUsersUserId(sUserId string, putRequest *request.PutUser, form *multipart.Form, fnUpload func(file *multipart.FileHeader, filePath string) error) response.Result {
-	serviceUsers := service.NewUserService()
-	res := response.Result{}
-
-	userId, err := strconv.ParseUint(sUserId, 10, 64)
-	if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
-	}
-
-	user, err := serviceUsers.GetUserByID(userId)
-	if gorm.IsRecordNotFoundError(err) {
-		res.Status = 404
-		res.Err = err
-		return res
-
-	} else if err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
-	}
-
-	passwordOld := strings.TrimSpace(putRequest.PasswordOld)
-	password := strings.TrimSpace(putRequest.Password)
-	passwordConfirm := strings.TrimSpace(putRequest.PasswordConfirm)
 
 	user.Name = strings.TrimSpace(putRequest.Name)
 
@@ -194,40 +167,34 @@ func putUsersUserId(sUserId string, putRequest *request.PutUser, form *multipart
 		user.IsEmailConfirmed = !user.IsEmailConfirmed
 	}
 
-	if utf8.RuneCountInString(passwordOld) > 0 && utf8.RuneCountInString(password) > 0 && utf8.RuneCountInString(passwordConfirm) > 0 {
+	password := strings.TrimSpace(putRequest.Password)
+	passwordConfirm := strings.TrimSpace(putRequest.PasswordConfirm)
+
+	if utf8.RuneCountInString(password) > 0 && utf8.RuneCountInString(passwordConfirm) > 0 {
+		if utf8.RuneCountInString(password) < manager.MinLenPassword {
+			c.JSON(400, manager.ErrPasswordIsShort.Error())
+			return
+		}
 		if password != passwordConfirm {
-			res.Status = 400
-			res.Err = errPasswordsAreNotEqual
-			return res
+			c.JSON(400, manager.ErrPasswordsAreNotEqual.Error())
+			return
 		}
-		if !helpers.ComparePasswords(user.Password, passwordOld) {
-			res.Status = 400
-			res.Err = errPasswordsAreNotEqualCurrentAndOld
-			return res
-		}
-		user.Password = helpers.HashAndSalt(password)
+		user.Password = manager.HashAndSalt(password)
 	}
 
 	var filePath string
-	for _, file := range form.File["file"] {
-		filePath, err = helpers.UploadImage(file, "./web/images", fnUpload)
+	if len(form.File["files"]) > 0 {
+		file := form.File["files"][0] // только один файл
+		filePath, err = manager.UploadImage(file, manager.DirImages, c.SaveUploadedFile)
 		if err != nil {
-			logger.Warning.Println(err)
+			logger.Warning.Println(err.Error())
 		}
-		break // только один файл
 	}
 
 	// отправили файл или у Юзера есть аватар и пришедший аватар пустой (удалим)
 	if filePath != "" || (user.Avatar != "" && putRequest.Avatar == "") {
 		if user.Avatar != "" {
-			tmp := "./web/images/" + user.Avatar
-
-			if helpers.FileExists(tmp) {
-				if err := os.Remove(tmp); err != nil {
-					logger.Warning.Println(err)
-				}
-			}
-
+			// файл хранится на удаленном сервере. Тут если делать, то удалять с удаленного сервера.
 			user.Avatar = ""
 		}
 		if filePath != "" {
@@ -236,40 +203,38 @@ func putUsersUserId(sUserId string, putRequest *request.PutUser, form *multipart
 	}
 
 	if err = serviceUsers.Update(user, nil); err != nil {
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	res.Status = 200
-	res.Err = nil
-	res.Data = user
-	return res
+	c.JSON(200, user)
 }
-func deleteUsersUserId(sUserId string) response.Result {
+
+// DeleteUsersUserID - удаление пользователя
+func DeleteUsersUserID(c *gin.Context) {
+	sUserID := c.Param("userID")
 	serviceUsers := service.NewUserService()
-	res := response.Result{}
 
-	userId, err := strconv.ParseUint(sUserId, 10, 64)
+	userID, err := manager.SToUint64(sUserID)
 	if err != nil {
-		logger.Warning.Println(err)
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
 
-	tx := server.Db.Debug().Begin()
-	if err := serviceUsers.Delete(userId, tx); err != nil {
+	tx := server.Db.Begin()
+
+	if err := serviceUsers.Delete(userID, tx); err != nil {
 		tx.Rollback()
-		logger.Warning.Println(err)
-		res.Status = 500
-		res.Err = err
-		return res
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
 	}
+
 	tx.Commit()
 
-	res.Status = 204
-	res.Err = nil
-	res.Data = nil
-	return res
+	c.JSON(204, nil)
 }
+
+// private -------------------------------------------------------------------------------------------------------------
