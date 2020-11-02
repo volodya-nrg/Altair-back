@@ -7,8 +7,9 @@ import (
 	"altair/pkg/service"
 	"altair/server"
 	"altair/storage"
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"strings"
 )
 
@@ -53,7 +54,7 @@ func GetCatsCatID(c *gin.Context) {
 	}
 
 	catFull, err := serviceCats.GetCatFullByID(catID, sWithPropsOnlyFiltered == "true", isDisabledCat)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
@@ -149,7 +150,7 @@ func PutCatsCatID(c *gin.Context) {
 	}
 
 	cat, err := serviceCats.GetCatByID(catID, -1)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 

@@ -4,11 +4,14 @@ import (
 	"altair/api/request"
 	"altair/pkg/logger"
 	"altair/pkg/manager"
+	"altair/pkg/mediafire"
 	"altair/pkg/service"
 	"altair/server"
 	"altair/storage"
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
+	"os"
 	"strings"
 	"unicode/utf8"
 )
@@ -40,7 +43,7 @@ func GetUsersUserID(c *gin.Context) {
 	}
 
 	user, err := serviceUsers.GetUserByID(userID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
@@ -64,6 +67,7 @@ func PostUsers(c *gin.Context) {
 	}
 
 	serviceUsers := service.NewUserService()
+	serviceMediafire := mediafire.NewMediafireService()
 
 	form, err := c.MultipartForm()
 	if err != nil {
@@ -100,9 +104,25 @@ func PostUsers(c *gin.Context) {
 	var filePath string
 	if len(form.File["files"]) > 0 {
 		file := form.File["files"][0] // только один файл
-		filePath, err = manager.UploadImage(file, manager.DirImages, c.SaveUploadedFile)
+
+		fileName, err := manager.UploadImage(file, manager.DirImages, c.SaveUploadedFile)
 		if err != nil {
 			logger.Warning.Println(err.Error())
+		} else if fileName != "" {
+			externalFilePath, err := serviceMediafire.UploadSimple(manager.DirImages + "/" + fileName)
+
+			switch {
+			case err != nil:
+				logger.Warning.Println(err.Error())
+			case externalFilePath == "":
+				logger.Warning.Println(manager.ErrNotFoundExternalFilePath.Error())
+			default:
+				if err := os.Remove(manager.DirImages + "/" + fileName); err != nil {
+					logger.Warning.Println(err.Error())
+				}
+
+				filePath = externalFilePath
+			}
 		}
 	}
 
@@ -149,9 +169,10 @@ func PutUsersUserID(c *gin.Context) {
 	}
 
 	serviceUsers := service.NewUserService()
+	serviceMediafire := mediafire.NewMediafireService()
 
 	user, err := serviceUsers.GetUserByID(userID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
@@ -185,9 +206,25 @@ func PutUsersUserID(c *gin.Context) {
 	var filePath string
 	if len(form.File["files"]) > 0 {
 		file := form.File["files"][0] // только один файл
-		filePath, err = manager.UploadImage(file, manager.DirImages, c.SaveUploadedFile)
+		fileName, err := manager.UploadImage(file, manager.DirImages, c.SaveUploadedFile)
+
 		if err != nil {
 			logger.Warning.Println(err.Error())
+		} else if fileName != "" {
+			externalFilePath, err := serviceMediafire.UploadSimple(manager.DirImages + "/" + fileName)
+
+			switch {
+			case err != nil:
+				logger.Warning.Println(err.Error())
+			case externalFilePath == "":
+				logger.Warning.Println(manager.ErrNotFoundExternalFilePath.Error())
+			default:
+				if err := os.Remove(manager.DirImages + "/" + fileName); err != nil {
+					logger.Warning.Println(err.Error())
+				}
+
+				filePath = externalFilePath
+			}
 		}
 	}
 

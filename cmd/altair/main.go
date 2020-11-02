@@ -8,58 +8,49 @@ import (
 	"altair/pkg/middleware"
 	"altair/server"
 	"flag"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
-	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"log"
 	"os"
 )
 
-func init() {
-	logger.Init(os.Stdout, os.Stdout, os.Stderr)
-}
 func main() {
 	var fileConfig string
 	flag.StringVar(&fileConfig, "config", "config-debug.json", "work conf file")
 	flag.Parse()
 
 	if err := configs.Load(fileConfig); err != nil {
-		logger.Error.Fatalln(err.Error())
+		log.Fatalln(err.Error())
 	}
 
 	confDB := configs.Cfg.DB
-
 	if err := server.InitDB(confDB.User, confDB.Password, confDB.Host, confDB.Port, confDB.Name); err != nil {
-		logger.Error.Fatalln(err.Error())
+		log.Fatalln(err.Error())
 	}
+
+	ioWriterLogInfo, ioWriterLogWarn, ioWriterLogError := os.Stdout, os.Stdout, os.Stderr
 
 	if configs.Cfg.Mode == gin.ReleaseMode {
 		gin.SetMode(gin.ReleaseMode)
-	}
-	if configs.Cfg.Mode == gin.DebugMode {
-		server.Db.LogMode(true)
-	}
 
+		f, err := os.OpenFile("./errors.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		defer f.Close()
+		ioWriterLogWarn, ioWriterLogError = f, f
+	}
+	// if configs.Cfg.Mode == gin.DebugMode {
+	//	 server.Db.LogMode(true)
+	// }
+
+	logger.Init(ioWriterLogInfo, ioWriterLogWarn, ioWriterLogError, configs.Cfg.Mode == gin.DebugMode)
 	route := setupRouter()
 
 	if err := route.Run("0.0.0.0:8080"); err != nil {
-		logger.Error.Fatalln(err.Error())
+		log.Println(err.Error())
 	}
 }
 func setupRouter() *gin.Engine {
-	configCors := cors.DefaultConfig()
-	configCors.AllowOrigins = []string{
-		"https://www.altair.uz",
-		"http://localhost:4200",
-	}
-	configCors.AllowCredentials = true // разрешаем отправлять куки на др. домены
-	configCors.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
-	configCors.AllowHeaders = []string{"Content-Type", "Authorization"}
-
-	if err := configCors.Validate(); err != nil {
-		logger.Error.Fatalln(err.Error())
-	}
-
 	// проверим наличие папок, иначе картинки сохранятся не будут
 	if !manager.FolderOrFileExists(manager.DirImages) {
 		if err := os.MkdirAll(manager.DirImages, os.ModePerm); err != nil {
@@ -75,9 +66,9 @@ func setupRouter() *gin.Engine {
 	route := gin.Default()
 	// route.MaxMultipartMemory = 16 << 20 // 16 MiB. Lower memory limit for multipart forms (default is 32 MiB)
 
-	route.Use(static.Serve("/images", static.LocalFile(manager.DirImages, true)))
-	route.Use(static.Serve("/resample", static.LocalFile(manager.DirResample, true)))
-	route.Use(cors.New(configCors))
+	route.Static("/images", manager.DirImages)
+	route.Static("/resample", manager.DirResample)
+	route.Use(CORSMiddleware())
 	route.Use(middleware.RoleIs())
 
 	v1 := route.Group("/api/v1")
@@ -135,11 +126,12 @@ func setupRouter() *gin.Engine {
 	v1.GET("/pages/ad/:adID", controller.GetPagesAdAdID)
 	v1.GET("/pages/main", controller.GetPagesMain)
 
-	v1.POST("recover/send-hash", controller.PostRecoverSendHash)     // отправитель хеша на почту
-	v1.POST("recover/change-pass", controller.PostRecoverChangePass) // приемник нового пароля
+	v1.POST("/recover/send-hash", controller.PostRecoverSendHash)     // отправитель хеша на почту
+	v1.POST("/recover/change-pass", controller.PostRecoverChangePass) // приемник нового пароля
 
 	v1.GET("/search/ads", controller.GetSearchAds)
 	onlyAdmin.GET("/test", controller.GetTest)
+	// v1.GET("/test", controller.GetTest)
 	v1.GET("/resample/:width/:height/*path", controller.GetResampleWidthHeightPath)
 	v1.GET("/phones/:phoneID", controller.GetPhonesPhoneID)
 
@@ -148,4 +140,22 @@ func setupRouter() *gin.Engine {
 	})
 
 	return route
+}
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		//	"https://www.altair.uz", "http://localhost:4200",
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		//[]string{"Content-Type", "Authorization"}
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST, PUT, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
 }

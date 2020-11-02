@@ -7,9 +7,10 @@ import (
 	"altair/pkg/manager"
 	"altair/pkg/service"
 	"altair/storage"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -42,14 +43,15 @@ func PostRecoverSendHash(c *gin.Context) {
 	}
 
 	user, err := serviceUsers.GetUserByEmail(email)
-	if gorm.IsRecordNotFoundError(err) {
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
 		c.JSON(404, err.Error())
 		return
-	} else if err != nil {
+	case err != nil:
 		logger.Warning.Println(err.Error())
 		c.JSON(400, err.Error())
 		return
-	} else if !user.IsEmailConfirmed {
+	case !user.IsEmailConfirmed:
 		c.JSON(400, manager.ErrEmailNotConfirmed.Error())
 		return
 	}
@@ -121,7 +123,7 @@ func PostRecoverChangePass(c *gin.Context) {
 	serviceRecover := service.NewRecoveryService()
 
 	recovery, err := serviceRecover.GetByHash(hash)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(400, err.Error())
 		return
 	} else if err != nil {
@@ -131,7 +133,7 @@ func PostRecoverChangePass(c *gin.Context) {
 	}
 
 	user, err := serviceUser.GetUserByID(recovery.UserID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(400, err.Error())
 		return
 	} else if err != nil {

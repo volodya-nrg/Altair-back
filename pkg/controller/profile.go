@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"net/http"
 	"os"
 	"regexp"
@@ -55,7 +55,7 @@ func PostProfile(c *gin.Context) {
 	}
 
 	user, err := serviceUsers.GetUserByEmail(email)
-	if err != nil && !gorm.IsRecordNotFoundError(err) {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		logger.Warning.Println(err.Error())
 		c.JSON(400, err.Error())
 		return
@@ -64,7 +64,7 @@ func PostProfile(c *gin.Context) {
 		c.JSON(400, manager.ErrInterInYourProfile.Error())
 		return
 	}
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		userNew := new(storage.User)
 		userNew.Email = email
 		userNew.Password = manager.HashAndSalt(password)
@@ -138,7 +138,7 @@ func PutProfile(c *gin.Context) {
 	servicePhone := service.NewPhoneService()
 
 	user, err := serviceUsers.GetUserByID(userID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 	} else if err != nil {
@@ -174,13 +174,14 @@ func PutProfile(c *gin.Context) {
 			logger.Warning.Println(err.Error())
 
 		} else if fileName != "" {
-			if externalFilePath, err := serviceMediafire.UploadSimple(manager.DirImages + "/" + fileName); err != nil {
+			externalFilePath, err := serviceMediafire.UploadSimple(manager.DirImages + "/" + fileName)
+
+			switch {
+			case err != nil:
 				logger.Warning.Println(err.Error())
-
-			} else if externalFilePath == "" {
+			case externalFilePath == "":
 				logger.Warning.Println(manager.ErrNotFoundExternalFilePath.Error())
-
-			} else {
+			default:
 				if err := os.Remove(manager.DirImages + "/" + fileName); err != nil {
 					logger.Warning.Println(err.Error())
 				}
@@ -223,45 +224,47 @@ func PutProfile(c *gin.Context) {
 
 // DeleteProfile - удаление профиля
 func DeleteProfile(c *gin.Context) {
-	//----------------------------------------------------------
-	userID, ok := c.MustGet("userID").(uint64)
-	if !ok {
-		c.JSON(http.StatusForbidden, manager.ErrUndefinedUserID.Error()) // 403
-		return
-	}
-	//----------------------------------------------------------
+	// УДАЛЕНИЕ ПРОФИЛЯ ПОКА ЗАБЛОКИРУЕМ, В БУДУЩЕМ МОЖЕТ ОТКРОЕМ
 
-	serviceAds := service.NewAdService()
-	serviceUser := service.NewUserService()
-	servicePhone := service.NewPhoneService()
+	// ----------------------------------------------------------
+	//userID, ok := c.MustGet("userID").(uint64)
+	//if !ok {
+	//	c.JSON(http.StatusForbidden, manager.ErrUndefinedUserID.Error()) // 403
+	//	return
+	//}
+	// ----------------------------------------------------------
 
-	tx := server.Db.Begin()
+	// serviceAds := service.NewAdService()
+	// serviceUser := service.NewUserService()
+	// servicePhone := service.NewPhoneService()
 
-	// удаляем профиль
-	if err := serviceUser.Delete(userID, tx); err != nil {
-		tx.Rollback()
-		logger.Warning.Println(err.Error())
-		c.JSON(500, err.Error())
-		return
-	}
-
-	// удаляем его объявления
-	if err := serviceAds.DeleteAllByUserID(userID, tx); err != nil {
-		tx.Rollback()
-		logger.Warning.Println(err.Error())
-		c.JSON(500, err.Error())
-		return
-	}
-
-	// удаляем его номера телефонов
-	if err := servicePhone.DeleteAllByUserID(userID, tx); err != nil {
-		tx.Rollback()
-		logger.Warning.Println(err.Error())
-		c.JSON(500, err.Error())
-		return
-	}
-
-	tx.Commit()
+	// tx := server.Db.Begin()
+	//
+	//// удаляем профиль
+	//if err := serviceUser.Delete(userID, tx); err != nil {
+	//	tx.Rollback()
+	//	logger.Warning.Println(err.Error())
+	//	c.JSON(500, err.Error())
+	//	return
+	//}
+	//
+	//// удаляем его объявления
+	//if err := serviceAds.DeleteAllByUserID(userID, tx); err != nil {
+	//	tx.Rollback()
+	//	logger.Warning.Println(err.Error())
+	//	c.JSON(500, err.Error())
+	//	return
+	//}
+	//
+	//// удаляем его номера телефонов
+	//if err := servicePhone.DeleteAllByUserID(userID, tx); err != nil {
+	//	tx.Rollback()
+	//	logger.Warning.Println(err.Error())
+	//	c.JSON(500, err.Error())
+	//	return
+	//}
+	//
+	//tx.Commit()
 
 	c.JSON(204, nil)
 }
@@ -317,7 +320,7 @@ func GetProfileAdsAdID(c *gin.Context) {
 	serviceAds := service.NewAdService()
 
 	adFull, err := serviceAds.GetAdFullByUserIDAndCatID(userID, adID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 	} else if err != nil {
@@ -355,7 +358,7 @@ func GetProfileInfo(c *gin.Context) {
 	servicePhone := service.NewPhoneService()
 
 	user, err := serviceUsers.GetUserByID(userID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
@@ -385,7 +388,7 @@ func GetProfileCheckEmailThroughHash(c *gin.Context) {
 	serviceUsers := service.NewUserService()
 
 	user, err := serviceUsers.GetUserByHashCheckEmail(hash)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(400, err.Error())
 		return
 
@@ -443,7 +446,7 @@ func PostProfilePhone(c *gin.Context) {
 	}
 
 	phoneOld, err := servicePhone.GetPhoneByNumberAndUserID(number, userID)
-	if !gorm.IsRecordNotFoundError(err) {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		if phoneOld.IsVerify {
 			c.JSON(400, manager.ErrPhoneAlreadyVerified.Error())
 			return
@@ -549,7 +552,7 @@ func PutProfilePhoneNumberCode(c *gin.Context) {
 	serviceUsers := service.NewUserService()
 
 	user, err := serviceUsers.GetUserByID(userID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 	} else if err != nil {
@@ -614,6 +617,7 @@ func DeleteProfilePhoneNumber(c *gin.Context) {
 
 	servicePhone := service.NewPhoneService()
 	serviceAds := service.NewAdService()
+	serviceUser := service.NewUserService()
 
 	var phoneIDNew uint64 = 0
 	curPhone := new(storage.Phone)
@@ -653,5 +657,27 @@ func DeleteProfilePhoneNumber(c *gin.Context) {
 
 	tx.Commit()
 
-	c.JSON(204, nil)
+	// получим актуальные данные (сразу)
+	user, err := serviceUser.GetUserByID(userID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(404, err.Error())
+		return
+	} else if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
+	}
+
+	phones, err = servicePhone.GetPhonesByUserID(userID)
+	if err != nil {
+		logger.Warning.Println(err.Error())
+		c.JSON(500, err.Error())
+		return
+	}
+
+	userExt := new(response.UserExt)
+	userExt.User = user
+	userExt.Phones = phones
+
+	c.JSON(200, userExt)
 }

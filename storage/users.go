@@ -4,7 +4,7 @@ import "time"
 
 // User - структура таблицы пользователей
 type User struct {
-	UserID            uint64     `json:"userId" gorm:"primary_key;column:user_id"`
+	UserID            uint64     `json:"userID" gorm:"primaryKey;column:user_id"`
 	Email             string     `json:"email" gorm:"column:email"`
 	IsEmailConfirmed  bool       `json:"isEmailConfirmed" gorm:"column:is_email_confirmed"`
 	Name              string     `json:"name" gorm:"column:name"`

@@ -11,9 +11,10 @@ import (
 	"altair/pkg/service"
 	"altair/server"
 	"altair/storage"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -121,7 +122,7 @@ func GetAdsAdID(c *gin.Context) {
 	}
 
 	adFull, err := serviceAds.GetAdFullByID(adID, isDisabledAd, isApprovedAd)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
@@ -223,7 +224,8 @@ func PostAds(c *gin.Context) {
 
 	// если автогинерация, то подменим. Заголовок обязательно должен быть.
 	if catFull.IsAutogenerateTitle {
-		if updatedTitle, err := updateTitle(catFull, &c.Request.PostForm); err != nil {
+		updatedTitle, err := updateTitle(catFull, &c.Request.PostForm)
+		if err != nil {
 			logger.Warning.Println(err.Error())
 			c.JSON(400, err.Error())
 			return
@@ -231,10 +233,9 @@ func PostAds(c *gin.Context) {
 		} else if updatedTitle == "" {
 			c.JSON(400, manager.ErrTitleIsEmpty.Error())
 			return
-
-		} else {
-			ad.Title = updatedTitle
 		}
+
+		ad.Title = updatedTitle
 	}
 
 	tx := server.Db.Begin()
@@ -333,7 +334,7 @@ func PutAdsAdID(c *gin.Context) {
 	}
 
 	ad, err := serviceAds.GetAdByID(adID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
@@ -445,7 +446,8 @@ func PutAdsAdID(c *gin.Context) {
 
 	// если автогинерация, то подменим. Заголовок обязательно должен быть.
 	if catFull.IsAutogenerateTitle {
-		if updatedTitle, err := updateTitle(catFull, &c.Request.PostForm); err != nil {
+		updatedTitle, err := updateTitle(catFull, &c.Request.PostForm)
+		if err != nil {
 			logger.Warning.Println(err.Error())
 			c.JSON(400, err.Error())
 			return
@@ -453,10 +455,9 @@ func PutAdsAdID(c *gin.Context) {
 		} else if updatedTitle == "" {
 			c.JSON(400, manager.ErrTitleIsEmpty.Error())
 			return
-
-		} else {
-			ad.Title = updatedTitle
 		}
+
+		ad.Title = updatedTitle
 	}
 
 	tx := server.Db.Begin()
@@ -633,7 +634,7 @@ func workWithPhoto(ad *storage.Ad, curImages []*storage.Image, propsFull []*resp
 			return err
 		}
 
-		max = max - len(curImages)
+		max -= len(curImages)
 
 		for key, file := range form.File["files"] {
 			// обойдем только определенное число файлов
@@ -710,8 +711,9 @@ func firstCheck(ad *storage.Ad, cat *storage.Cat) error {
 func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, error) {
 	var title string
 
+	switch catFull.CatID {
 	// транспорт / автомобили / с пробегом-новый
-	if catFull.CatID == 61 || catFull.CatID == 62 {
+	case 61, 62:
 		var mark string
 		model := strings.TrimSpace(postForm.Get("p94"))
 		year := strings.TrimSpace(postForm.Get("p95"))
@@ -733,9 +735,9 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("%s %s, %s", mark, model, year)
 
-		// недвижимость / квартиры / продам / вторичка-новостройка (2-к квартира (Студия), 20 м², 8/9 эт.)
-		// Есть "Свободная планировка"
-	} else if catFull.CatID == 498 || catFull.CatID == 499 {
+	// недвижимость / квартиры / продам / вторичка-новостройка (2-к квартира (Студия), 20 м², 8/9 эт.)
+	// Есть "Свободная планировка"
+	case 498, 499:
 		amountRoomsID, err := manager.SToUint64(postForm.Get("p44"))
 		if err != nil {
 			return title, err
@@ -768,8 +770,8 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 		// тут есть свободная планировка
 		title = fmt.Sprintf("%s, %s %s, %s/%s эт.", amountRoomsValue, commonArea, suffix, floor, totalFloor)
 
-		// недвижимость / квартиры / сдам / на длительный срок-посуточно (2-к квартира (Студия), 20 м², 8/9 эт.)
-	} else if catFull.CatID == 500 || catFull.CatID == 501 {
+	// недвижимость / квартиры / сдам / на длительный срок-посуточно (2-к квартира (Студия), 20 м², 8/9 эт.)
+	case 500, 501:
 		amountRoomsID, err := manager.SToUint64(postForm.Get("p46"))
 		if err != nil {
 			return title, err
@@ -801,8 +803,8 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("%s, %s %s, %s/%s эт.", amountRoomsValue, commonArea, suffix, floor, totalFloor)
 
-		// недвижимость / квартиры / куплю (Куплю 2-к квартиру (студию и т.д.))
-	} else if catFull.CatID == 104 {
+	// недвижимость / квартиры / куплю (Куплю 2-к квартиру (студию и т.д.))
+	case 104:
 		amountRoomsID, err := manager.SToUint64(postForm.Get("p44"))
 		if err != nil {
 			return title, err
@@ -813,13 +815,12 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 			if p.PropID == 44 {
 				for _, v2 := range p.Values {
 					if v2.ValueID == amountRoomsID {
-						if v2.ValueID == 663 {
+						switch v2.ValueID {
+						case 663:
 							amountRoomsValue = "студию"
-
-						} else if v2.ValueID == 658 {
+						case 658:
 							amountRoomsValue = "свободную планировку"
-
-						} else {
+						default:
 							amountRoomsValue = v2.Title + "-к квартиру"
 						}
 					}
@@ -829,8 +830,8 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Куплю %s", amountRoomsValue)
 
-		// недвижимость / квартиры / сниму / на длительный срок-посуточно (Cниму 2-к квартиру (студию))
-	} else if catFull.CatID == 502 || catFull.CatID == 503 {
+	// недвижимость / квартиры / сниму / на длительный срок-посуточно (Cниму 2-к квартиру (студию))
+	case 502, 503:
 		amountRoomsID, err := manager.SToUint64(postForm.Get("p46"))
 		if err != nil {
 			return title, err
@@ -854,9 +855,9 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Cниму %s", amountRoomsValue)
 
-		// недвижимость / комнаты / продам (Комната 20 м² в 9-к, 8/9 эт.)
-		// недвижимость / комнаты / сдам / на длительный срок-посуточно
-	} else if catFull.CatID == 106 || catFull.CatID == 504 || catFull.CatID == 505 {
+	// недвижимость / комнаты / продам (Комната 20 м² в 9-к, 8/9 эт.)
+	// недвижимость / комнаты / сдам / на длительный срок-посуточно
+	case 106, 504, 505:
 		roomsID, err := manager.SToUint64(postForm.Get("p49"))
 		if err != nil {
 			return title, err
@@ -882,18 +883,18 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 		totalFloor := strings.TrimSpace(postForm.Get("p79"))
 		title = fmt.Sprintf("Комната %s %s в %s-к, %s/%s эт.", areaRoom, suffix, roomsValue, floor, totalFloor)
 
-		// недвижимость / комнаты / куплю
-	} else if catFull.CatID == 108 {
+	// недвижимость / комнаты / куплю
+	case 108:
 		title = "Куплю комнату"
 
-		// недвижимость / комнаты / сниму / на длительный срок-посуточно
-	} else if catFull.CatID == 506 || catFull.CatID == 507 {
+	// недвижимость / комнаты / сниму / на длительный срок-посуточно
+	case 506, 507:
 		title = "Сниму комнату"
 
-		// недвижимость / дома... / продам
-		// недвижимость / дома... / сдам / на длительный срок-посуточно
-		// (Дом, Дача, Коттедж, Таунхаус) 95 м² на участке 12 сот.
-	} else if catFull.CatID == 110 || catFull.CatID == 508 || catFull.CatID == 509 {
+	// недвижимость / дома... / продам
+	// недвижимость / дома... / сдам / на длительный срок-посуточно
+	// (Дом, Дача, Коттедж, Таунхаус) 95 м² на участке 12 сот.
+	case 110, 508, 509:
 		buildID, err := manager.SToUint64(postForm.Get("p11"))
 		if err != nil {
 			return title, err
@@ -903,17 +904,16 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 		var suffixBuild string
 		var suffixEarth string
 		for _, p := range catFull.PropsFull {
-			if p.PropID == 11 {
+			switch p.PropID {
+			case 11:
 				for _, v2 := range p.Values {
 					if v2.ValueID == buildID {
 						buildValue = v2.Title
 					}
 				}
-
-			} else if p.PropID == 86 {
+			case 86:
 				suffixBuild = p.Suffix
-
-			} else if p.PropID == 87 {
+			case 87:
 				suffixEarth = p.Suffix
 			}
 		}
@@ -922,8 +922,8 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 		areaEarth := strings.TrimSpace(postForm.Get("p87"))
 		title = fmt.Sprintf("%s %s %s на участке %s %s", buildValue, areaBuild, suffixBuild, areaEarth, suffixEarth)
 
-		// недвижимость / дома... / куплю. Куплю дом (...)
-	} else if catFull.CatID == 112 {
+	// недвижимость / дома... / куплю. Куплю дом (...)
+	case 112:
 		buildID, err := manager.SToUint64(postForm.Get("p11"))
 		if err != nil {
 			return title, err
@@ -946,8 +946,8 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Куплю %s", buildValue)
 
-		// недвижимость / дома... / сниму / на длительный срок-посуточно. Сниму дом (...)
-	} else if catFull.CatID == 510 || catFull.CatID == 511 {
+	// недвижимость / дома... / сниму / на длительный срок-посуточно. Сниму дом (...)
+	case 510, 511:
 		buildID, err := manager.SToUint64(postForm.Get("p11"))
 		if err != nil {
 			return title, err
@@ -970,10 +970,10 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Сниму %s", buildValue)
 
-		// недвижимость / земельные участки / продам / поселений (ИЖС)
-		// недвижимость / земельные участки / сдам / поселений (ИЖС)
-		// Участок 50 сот. (ИЖС)
-	} else if catFull.CatID == 512 || catFull.CatID == 515 {
+	// недвижимость / земельные участки / продам / поселений (ИЖС)
+	// недвижимость / земельные участки / сдам / поселений (ИЖС)
+	// Участок 50 сот. (ИЖС)
+	case 512, 515:
 		area := strings.TrimSpace(postForm.Get("p13"))
 		var suffix string
 		for _, p := range catFull.PropsFull {
@@ -984,10 +984,10 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Участок %s %s (ИЖС)", area, suffix)
 
-		// недвижимость / земельные участки / продам / сельхозназначений (СНТ, ДНП)
-		// недвижимость / земельные участки / сдам / сельхозназначений (СНТ, ДНП)
-		// Участок 50 сот. (СНТ, ДНП)
-	} else if catFull.CatID == 513 || catFull.CatID == 516 {
+	// недвижимость / земельные участки / продам / сельхозназначений (СНТ, ДНП)
+	// недвижимость / земельные участки / сдам / сельхозназначений (СНТ, ДНП)
+	// Участок 50 сот. (СНТ, ДНП)
+	case 513, 516:
 		area := strings.TrimSpace(postForm.Get("p13"))
 		var suffix string
 		for _, p := range catFull.PropsFull {
@@ -998,10 +998,10 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Участок %s %s (СНТ, ДНП)", area, suffix)
 
-		// недвижимость / земельные участки / продам / промназначения
-		// недвижимость / земельные участки / сдам / промназначения
-		// Участок 50 сот. (промназначения)
-	} else if catFull.CatID == 514 || catFull.CatID == 517 {
+	// недвижимость / земельные участки / продам / промназначения
+	// недвижимость / земельные участки / сдам / промназначения
+	// Участок 50 сот. (промназначения)
+	case 514, 517:
 		area := strings.TrimSpace(postForm.Get("p13"))
 		var suffix string
 		for _, p := range catFull.PropsFull {
@@ -1012,33 +1012,33 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Участок %s %s (промназначения)", area, suffix)
 
-		// недвижимость / земельные участки / куплю / поселений (ИЖС)
-	} else if catFull.CatID == 518 {
+	// недвижимость / земельные участки / куплю / поселений (ИЖС)
+	case 518:
 		title = "Куплю участок (ИЖС)"
 
-		// недвижимость / земельные участки / куплю / сельхозназначения (СНТ, ДНП)
-	} else if catFull.CatID == 519 {
+	// недвижимость / земельные участки / куплю / сельхозназначения (СНТ, ДНП)
+	case 519:
 		title = "Куплю участок (СНТ, ДНП)"
 
-		// недвижимость / земельные участки / куплю / промназначения
-	} else if catFull.CatID == 520 {
+	// недвижимость / земельные участки / куплю / промназначения
+	case 520:
 		title = "Куплю участок (промназначения)"
 
-		// недвижимость / земельные участки / сниму / поселений (ИЖС)
-	} else if catFull.CatID == 521 {
+	// недвижимость / земельные участки / сниму / поселений (ИЖС)
+	case 521:
 		title = "Сниму участок (ИЖС)"
 
-		// недвижимость / земельные участки / сниму / сельхозназначения (СНТ, ДНП)
-	} else if catFull.CatID == 522 {
+	// недвижимость / земельные участки / сниму / сельхозназначения (СНТ, ДНП)
+	case 522:
 		title = "Сниму участок (СНТ, ДНП)"
 
-		// недвижимость / земельные участки / сниму / промназначения
-	} else if catFull.CatID == 523 {
+	// недвижимость / земельные участки / сниму / промназначения
+	case 523:
 		title = "Сниму участок (промназначения)"
 
-		// недвижимость / гаражи и машиноместа / продам-сдам / гараж
-		// Гараж, 24 м²
-	} else if catFull.CatID == 524 || catFull.CatID == 526 {
+	// недвижимость / гаражи и машиноместа / продам-сдам / гараж
+	// Гараж, 24 м²
+	case 524, 526:
 		areaID, err := manager.SToUint64(postForm.Get("p53"))
 		if err != nil {
 			return title, err
@@ -1060,9 +1060,9 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Гараж, %s %s", areaValue, suffix)
 
-		// недвижимость / гаражи и машиноместа / продам-сдам / машиноместо
-		// Машиноместо, 24 м²
-	} else if catFull.CatID == 525 || catFull.CatID == 527 {
+	// недвижимость / гаражи и машиноместа / продам-сдам / машиноместо
+	// Машиноместо, 24 м²
+	case 525, 527:
 		areaID, err := manager.SToUint64(postForm.Get("p53"))
 		if err != nil {
 			return title, err
@@ -1084,24 +1084,25 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		title = fmt.Sprintf("Машиноместо, %s %s", areaValue, suffix)
 
-		// недвижимость / гаражи и машиноместа / куплю / гараж
-	} else if catFull.CatID == 528 {
+	// недвижимость / гаражи и машиноместа / куплю / гараж
+	case 528:
 		title = "Куплю гараж"
 
-		// недвижимость / гаражи и машиноместа / куплю / машиноместо
-	} else if catFull.CatID == 529 {
+	// недвижимость / гаражи и машиноместа / куплю / машиноместо
+	case 529:
 		title = "Куплю машиноместо"
 
-		// недвижимость / гаражи и машиноместа / сниму / гараж
-	} else if catFull.CatID == 530 {
+	// недвижимость / гаражи и машиноместа / сниму / гараж
+	case 530:
 		title = "Сниму гараж"
 
-		// недвижимость / гаражи и машиноместа / сниму / машиноместо
-	} else if catFull.CatID == 531 {
+	// недвижимость / гаражи и машиноместа / сниму / машиноместо
+	case 531:
 		title = "Сниму машиноместо"
+	}
 
-		// недвижимость / недвижимость за рубежом / ...
-	} else if catFull.CatID >= 561 && catFull.CatID <= 580 {
+	// недвижимость / недвижимость за рубежом / ...
+	if catFull.CatID >= 561 && catFull.CatID <= 580 {
 		countryID, err := manager.SToUint64(postForm.Get("p55"))
 		if err != nil {
 			return title, err
@@ -1120,36 +1121,29 @@ func updateTitle(catFull *response.СatFull, postForm *url.Values) (string, erro
 
 		if catFull.CatID >= 561 && catFull.CatID <= 570 {
 			title = fmt.Sprintf("%s (%s)", catFull.Name, countryValue)
-
-		} else if catFull.CatID == 571 {
-			title = fmt.Sprintf("Куплю квартиру (%s)", countryValue)
-
-		} else if catFull.CatID == 572 {
-			title = fmt.Sprintf("Куплю дом (%s)", countryValue)
-
-		} else if catFull.CatID == 573 {
-			title = fmt.Sprintf("Куплю участок (%s)", countryValue)
-
-		} else if catFull.CatID == 574 {
-			title = fmt.Sprintf("Куплю гараж, машиноместо (%s)", countryValue)
-
-		} else if catFull.CatID == 575 {
-			title = fmt.Sprintf("Куплю коммерческую недвижимость (%s)", countryValue)
-
-		} else if catFull.CatID == 576 {
-			title = fmt.Sprintf("Сниму квартиру (%s)", countryValue)
-
-		} else if catFull.CatID == 577 {
-			title = fmt.Sprintf("Сниму дом (%s)", countryValue)
-
-		} else if catFull.CatID == 578 {
-			title = fmt.Sprintf("Сниму участок (%s)", countryValue)
-
-		} else if catFull.CatID == 579 {
-			title = fmt.Sprintf("Сниму гараж, машиноместо (%s)", countryValue)
-
-		} else if catFull.CatID == 580 {
-			title = fmt.Sprintf("Сниму коммерческую недвижимость (%s)", countryValue)
+		} else {
+			switch catFull.CatID {
+			case 571:
+				title = fmt.Sprintf("Куплю квартиру (%s)", countryValue)
+			case 572:
+				title = fmt.Sprintf("Куплю дом (%s)", countryValue)
+			case 573:
+				title = fmt.Sprintf("Куплю участок (%s)", countryValue)
+			case 574:
+				title = fmt.Sprintf("Куплю гараж, машиноместо (%s)", countryValue)
+			case 575:
+				title = fmt.Sprintf("Куплю коммерческую недвижимость (%s)", countryValue)
+			case 576:
+				title = fmt.Sprintf("Сниму квартиру (%s)", countryValue)
+			case 577:
+				title = fmt.Sprintf("Сниму дом (%s)", countryValue)
+			case 578:
+				title = fmt.Sprintf("Сниму участок (%s)", countryValue)
+			case 579:
+				title = fmt.Sprintf("Сниму гараж, машиноместо (%s)", countryValue)
+			case 580:
+				title = fmt.Sprintf("Сниму коммерческую недвижимость (%s)", countryValue)
+			}
 		}
 	}
 

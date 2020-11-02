@@ -7,13 +7,12 @@ import (
 	"altair/pkg/logger"
 	"altair/pkg/manager"
 	"altair/pkg/service"
+	"altair/pkg/soc"
 	"altair/storage"
-	"crypto/md5"
-	"fmt"
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -74,175 +73,64 @@ func PostAuthLogin(c *gin.Context) {
 
 	// если авторазация происходит через соц. сети
 	if code != "" && state != "" {
-		var tempEmail string
+		if has, _ := manager.InArray(state, manager.AvailableKindSoc); !has {
+			logger.Warning.Println(manager.ErrUndefinedOptSoc.Error())
+			c.JSON(500, manager.ErrUndefinedOptSoc.Error())
+			return
+		}
 
-		if state == "vk" {
-			responseVkAccessToken := new(response.SocAuthVkAccessToken)
-			query := map[string]string{
-				"client_id":     fmt.Sprint(configs.Cfg.Socials.Vk.ClientID),
-				"client_secret": configs.Cfg.Socials.Vk.ClientSecret,
-				"redirect_uri":  "https://www.altair.uz/login", // так же как и на фронте
-				"code":          code,
-			}
+		var abstractSoc soc.Socer
 
-			if err := manager.MakeRequest("post", "https://oauth.vk.com/access_token", responseVkAccessToken, query); err != nil {
+		switch state {
+		case "vk":
+			abstractSoc = soc.NewVk(configs.Cfg.Socials.Vk.ClientID, configs.Cfg.Socials.Vk.ClientSecret, code)
+		case "ok":
+			abstractSoc = soc.NewOk(configs.Cfg.Socials.Ok.ClientID, configs.Cfg.Socials.Ok.ClientSecret, configs.Cfg.Socials.Ok.ClientPublic, code)
+		case "fb":
+			abstractSoc = soc.NewFb(configs.Cfg.Socials.Fb.ClientID, configs.Cfg.Socials.Fb.ClientSecret, code)
+		case "ggl":
+			abstractSoc = soc.NewGgl(configs.Cfg.Socials.Ggl.ClientID, configs.Cfg.Socials.Ggl.ClientSecret, code)
+		}
+
+		commonUserInfo, err := soc.CommonHandler(state, abstractSoc)
+		if err != nil {
+			logger.Warning.Println(err.Error())
+			c.JSON(500, err.Error())
+			return
+		}
+
+		if commonUserInfo.Email == "" {
+			logger.Warning.Println(manager.ErrUndefinedSocEmail.Error())
+			c.JSON(500, manager.ErrUndefinedSocEmail.Error())
+			return
+		}
+
+		_, err = serviceUsers.GetUserByEmail(commonUserInfo.Email)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			logger.Warning.Println(err.Error())
+			c.JSON(500, err.Error())
+			return
+
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			tmpUser := new(storage.User)
+			tmpUser.Email = commonUserInfo.Email
+			tmpUser.Password = manager.HashAndSalt(manager.RandStringRunes(10))
+			tmpUser.IsEmailConfirmed = true
+
+			if err := serviceUsers.Create(tmpUser, nil); err != nil {
 				logger.Warning.Println(err.Error())
 				c.JSON(500, err.Error())
-				return
-			}
-
-			if responseVkAccessToken.AccessToken != "" && responseVkAccessToken.ExpiresIn > 0 && responseVkAccessToken.UserID > 0 {
-				tempEmail = fmt.Sprintf("id%d@vk.com", responseVkAccessToken.UserID)
-
-			} else {
-				c.JSON(400, manager.ErrSocAuthUnknown.Error())
-				return
-			}
-		} else if state == "ok" {
-			responseOkAccessToken := new(response.SocAuthOkAccessToken)
-			responseOkCurrentUser := new(response.SocAuthOkCurrentUser)
-			query := map[string]string{
-				"code":          code,
-				"client_id":     fmt.Sprint(configs.Cfg.Socials.Ok.ClientID),
-				"client_secret": configs.Cfg.Socials.Ok.ClientSecret,
-				"redirect_uri":  "https://www.altair.uz/login", // так же как и на фронте
-				"grant_type":    "authorization_code",
-			}
-
-			if err := manager.MakeRequest("post", "https://api.ok.ru/oauth/token.do", responseOkAccessToken, query); err != nil {
-				logger.Warning.Println(err.Error())
-				c.JSON(500, err.Error())
-				return
-			}
-
-			if responseOkAccessToken.AccessToken != "" && responseOkAccessToken.ExpiresIn != "" {
-				// получаем данные о пользователе
-				str1 := fmt.Sprintf("%s%s", responseOkAccessToken.AccessToken, configs.Cfg.Socials.Ok.ClientSecret)
-				md5Hash1 := fmt.Sprintf("%x", md5.Sum([]byte(str1)))
-				preSig := []string{"application_key=" + configs.Cfg.Socials.Ok.ClientPublic, "fields=uid", "format=json", "method=users.getCurrentUser", md5Hash1}
-				str2 := strings.Join(preSig, "")
-				md5Hash2 := fmt.Sprintf("%x", md5.Sum([]byte(str2)))
-				query2 := map[string]string{
-					"application_key": configs.Cfg.Socials.Ok.ClientPublic,
-					"fields":          "uid",
-					"format":          "json",
-					"method":          "users.getCurrentUser",
-					"sig":             md5Hash2,
-					"access_token":    responseOkAccessToken.AccessToken,
-				}
-
-				if err := manager.MakeRequest("post", "https://api.ok.ru/fb.do", responseOkCurrentUser, query2); err != nil {
-					logger.Warning.Println(err.Error())
-					c.JSON(500, err.Error())
-					return
-				}
-
-				if responseOkCurrentUser.UID != "" {
-					tempEmail = fmt.Sprintf("id%s@ok.ru", responseOkCurrentUser.UID)
-				}
-
-			} else {
-				c.JSON(400, manager.ErrSocAuthUnknown.Error())
-				return
-			}
-		} else if state == "fb" {
-			responseFbAccessToken := new(response.SocAuthFbAccessToken)
-			responseFbCurrentUser := new(response.SocAuthFbCurrentUser)
-			query := map[string]string{
-				"client_id":     fmt.Sprint(configs.Cfg.Socials.Fb.ClientID),
-				"redirect_uri":  "https://www.altair.uz/login", // так же как и на фронте
-				"client_secret": configs.Cfg.Socials.Fb.ClientSecret,
-				"code":          code,
-			}
-			if err := manager.MakeRequest("post", "https://graph.facebook.com/v7.0/oauth/access_token", responseFbAccessToken, query); err != nil {
-				logger.Warning.Println(err.Error())
-				c.JSON(500, err.Error())
-				return
-			}
-
-			if responseFbAccessToken.AccessToken != "" && responseFbAccessToken.ExpiresIn > 0 {
-				query := map[string]string{
-					"access_token": responseFbAccessToken.AccessToken,
-				}
-
-				if err := manager.MakeRequest("get", "https://graph.facebook.com/me", responseFbCurrentUser, query); err != nil {
-					logger.Warning.Println(err.Error())
-					c.JSON(500, err.Error())
-					return
-				}
-
-				if responseFbCurrentUser.ID != "" {
-					tempEmail = fmt.Sprintf("id%s@facebook.com", responseFbCurrentUser.ID)
-				}
-
-			} else {
-				c.JSON(400, manager.ErrSocAuthUnknown.Error())
-				return
-			}
-		} else if state == "ggl" {
-			responseGglAccessToken := new(response.SocAuthGglAccessToken)
-			query := map[string]string{
-				"client_id":     configs.Cfg.Socials.Ggl.ClientID,
-				"client_secret": configs.Cfg.Socials.Ggl.ClientSecret,
-				"code":          code,
-				"grant_type":    "authorization_code",
-				"redirect_uri":  "https://www.altair.uz/login", // так же как и на фронте
-			}
-			if err := manager.MakeRequest("post", "https://oauth2.googleapis.com/token", responseGglAccessToken, query); err != nil {
-				logger.Warning.Println(err.Error())
-				c.JSON(500, err.Error())
-				return
-			}
-
-			logger.Info.Printf("%#v", responseGglAccessToken)
-
-			if responseGglAccessToken.AccessToken != "" && responseGglAccessToken.ExpiresIn > 0 {
-				var x interface{}
-				query := map[string]string{
-					"access_token": responseGglAccessToken.AccessToken,
-				}
-				if err := manager.MakeRequest("post", "https://www.googleapis.com/oauth2/v1/userinfo", x, query); err != nil {
-					logger.Warning.Println(err.Error())
-					c.JSON(500, err.Error())
-					return
-				}
-
-				logger.Info.Printf("%#v", x)
-
-			} else {
-				c.JSON(400, manager.ErrSocAuthUnknown.Error())
 				return
 			}
 		}
 
-		if tempEmail != "" {
-			email = tempEmail
-			isAuthorizedThroughSoc = true
-
-			_, err := serviceUsers.GetUserByEmail(tempEmail)
-			if err != nil && !gorm.IsRecordNotFoundError(err) {
-				logger.Warning.Println(err.Error())
-				c.JSON(500, err.Error())
-				return
-
-			} else if gorm.IsRecordNotFoundError(err) {
-				tmpUser := new(storage.User)
-				tmpUser.Email = tempEmail
-				tmpUser.Password = manager.HashAndSalt(manager.RandStringRunes(10))
-				tmpUser.IsEmailConfirmed = true
-
-				if err := serviceUsers.Create(tmpUser, nil); err != nil {
-					logger.Warning.Println(err.Error())
-					c.JSON(500, err.Error())
-					return
-				}
-			}
-		}
+		email = commonUserInfo.Email
+		isAuthorizedThroughSoc = true
 	}
 
 	// стандартный подход проверки пользователя
 	user, err := serviceUsers.GetUserByEmail(email)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(400, manager.ErrNotCorrectLoginPassword.Error())
 		return
 

@@ -6,7 +6,7 @@ import (
 	"altair/server"
 	"altair/storage"
 	"fmt"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"net/url"
 	"strings"
 )
@@ -47,14 +47,10 @@ func (as AdService) GetAdsFull(
 	adsFull := make([]*response.AdFull, 0)
 	var err error
 
-	stm := server.Db.Limit(limit).Offset(offset).Order(order)
+	stm := server.Db.Limit(limit).Offset(int(offset)).Order(order)
 
 	if checkCountCatIDs && len(catIDs) < 1 {
 		return adsFull, manager.ErrEmptyListCatIDs
-	}
-
-	if len(catIDs) > 0 {
-		stm = stm.Where("cat_id IN (?)", catIDs)
 	}
 
 	if isDisabled > 0 {
@@ -69,6 +65,10 @@ func (as AdService) GetAdsFull(
 
 	} else if isApproved == 0 {
 		stm = stm.Where("is_approved = 0")
+	}
+
+	if len(catIDs) > 0 {
+		stm = stm.Where("cat_id IN (?)", catIDs)
 	}
 
 	if err := stm.Find(&ads).Error; err != nil {
@@ -104,9 +104,13 @@ func (as AdService) GetLastAdsByOneCat(limit int) ([]*response.AdFull, error) {
 		SELECT *
 			FROM ads
 			WHERE 
-				cat_id = (SELECT cat_id FROM ads ORDER BY created_at DESC LIMIT 1) AND
 				is_disabled = 0 AND
-				is_approved = 1
+				is_approved = 1 AND
+				cat_id = (SELECT cat_id 
+							FROM ads 
+							WHERE is_disabled = 0 AND is_approved = 1 
+							ORDER BY created_at DESC 
+							LIMIT 1)
 			ORDER BY created_at DESC
 			LIMIT ?`
 
@@ -127,7 +131,7 @@ func (as AdService) GetLastAdsByOneCat(limit int) ([]*response.AdFull, error) {
 }
 
 // GetAdFullByID - получить полное объявление по его ID
-func (as AdService) GetAdFullByID(adID uint64, isDisabled int, isApproved int) (*response.AdFull, error) {
+func (as AdService) GetAdFullByID(adID uint64, isDisabled, isApproved int) (*response.AdFull, error) {
 	ad := new(storage.Ad)
 	adFull := new(response.AdFull)
 	stm := server.Db
@@ -162,7 +166,7 @@ func (as AdService) GetAdFullByID(adID uint64, isDisabled int, isApproved int) (
 }
 
 // GetAdsFullBySearchTitle - получить полные объявления по поиску заголовка
-func (as AdService) GetAdsFullBySearchTitle(title string, catID uint64, limit uint64, offset uint64, mGetParams url.Values) ([]*response.AdFull, error) {
+func (as AdService) GetAdsFullBySearchTitle(title string, catID, limit, offset uint64, mGetParams url.Values) ([]*response.AdFull, error) {
 	serviceProps := NewPropService()
 	ads := make([]*storage.Ad, 0)
 	adsFull := make([]*response.AdFull, 0)
@@ -207,7 +211,7 @@ func (as AdService) GetAdsFullBySearchTitle(title string, catID uint64, limit ui
 		slicePropValFilter = append(slicePropValFilter, str)
 	}
 
-	queryDop := strings.Join(slicePropValFilter[:], " OR ")
+	queryDop := strings.Join(slicePropValFilter, " OR ")
 	query := `
 		SELECT A.*
 			FROM ads A
@@ -238,12 +242,12 @@ func (as AdService) GetAdsFullBySearchTitle(title string, catID uint64, limit ui
 }
 
 // GetAdsFullByUserID - получить полные объявления относильно ID пользователя
-func (as AdService) GetAdsFullByUserID(userID uint64, order string, limit uint64, offset uint64) ([]*response.AdFull, error) {
+func (as AdService) GetAdsFullByUserID(userID uint64, order string, limit, offset uint64) ([]*response.AdFull, error) {
 	ads := make([]*storage.Ad, 0)
 	adsFull := make([]*response.AdFull, 0)
 	var err error
 
-	query := server.Db.Limit(limit).Offset(offset).Order(order).Where("user_id = ?", userID)
+	query := server.Db.Limit(int(limit)).Offset(int(offset)).Order(order).Where("user_id = ?", userID)
 
 	if err := query.Find(&ads).Error; err != nil {
 		return adsFull, err
@@ -262,7 +266,7 @@ func (as AdService) GetAdsFullByUserID(userID uint64, order string, limit uint64
 }
 
 // GetAdFullByUserIDAndCatID - получить полное объявление относительно ID пользователя и ID категории
-func (as AdService) GetAdFullByUserIDAndCatID(userID uint64, adID uint64) (*response.AdFull, error) {
+func (as AdService) GetAdFullByUserIDAndCatID(userID, adID uint64) (*response.AdFull, error) {
 	ad := new(storage.Ad)
 	adFull := new(response.AdFull)
 
@@ -301,11 +305,8 @@ func (as AdService) Create(ad *storage.Ad, tx *gorm.DB) error {
 	if tx == nil {
 		tx = server.Db
 	}
-	if !server.Db.NewRecord(ad) {
-		return manager.ErrOnNewRecordNew
-	}
 	if err := tx.Create(ad).Error; err != nil {
-		return err //manager.ErrNotCreateNewAd
+		return err
 	}
 	if err := as.Update(ad, tx); err != nil {
 		return err
@@ -328,7 +329,7 @@ func (as AdService) Update(ad *storage.Ad, tx *gorm.DB) error {
 }
 
 // UpdateByPhoneID - обновить объявление относительно ID телефона
-func (as AdService) UpdateByPhoneID(phoneIDOld uint64, phoneIDNew uint64, userID uint64, tx *gorm.DB) error {
+func (as AdService) UpdateByPhoneID(phoneIDOld, phoneIDNew, userID uint64, tx *gorm.DB) error {
 	ads := make([]*storage.Ad, 0)
 	adIDs := make([]uint64, 0)
 	var query string
@@ -415,7 +416,7 @@ func (as AdService) DeleteAllByUserID(userID uint64, tx *gorm.DB) error {
 }
 
 // private -------------------------------------------------------------------------------------------------------------
-func getAdsFullByTitleAndCatID(title string, limitSrc uint64, offsetSrc uint64, catID uint64) ([]*response.AdFull, error) {
+func getAdsFullByTitleAndCatID(title string, limitSrc, offsetSrc, catID uint64) ([]*response.AdFull, error) {
 	ads := make([]*storage.Ad, 0)
 	adsFull := make([]*response.AdFull, 0)
 	var err error
@@ -429,11 +430,11 @@ func getAdsFullByTitleAndCatID(title string, limitSrc uint64, offsetSrc uint64, 
 		offset = offsetSrc
 	}
 
-	stm := server.Db.Limit(limit).
+	stm := server.Db.Limit(int(limit)).
 		Where("is_disabled = 0 AND is_approved = 1 AND title LIKE ?", "%"+title+"%")
 
 	if offset > 0 {
-		stm = stm.Offset(offset)
+		stm = stm.Offset(int(offset))
 	}
 
 	if catID > 0 {
@@ -465,6 +466,12 @@ func buildAdsFullFromAds(ads []*storage.Ad) ([]*response.AdFull, error) {
 		adIDs = append(adIDs, ad.AdID)
 		adFull := new(response.AdFull)
 		adFull.Ad = ad
+
+		// с массивами надо сделать отдельную ф-ии фабрику, где по умолчанию в массивах
+		// будет стоять пустой массив
+		adFull.Images = make([]*storage.Image, 0)
+		adFull.DetailsExt = make([]*response.AdDetailExt, 0)
+
 		adsFull = append(adsFull, adFull)
 	}
 

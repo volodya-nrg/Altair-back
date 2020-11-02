@@ -2,7 +2,7 @@ package request
 
 // PutUser - структура запроса на измение пользователя
 type PutUser struct {
-	UserID           uint64 `form:"userId" binding:"required"`
+	UserID           uint64 `form:"userID" binding:"required"`
 	Email            string `form:"email" binding:"required"`
 	Avatar           string `form:"avatar"`
 	Name             string `form:"name"`

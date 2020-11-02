@@ -2,11 +2,12 @@ package service
 
 import (
 	"altair/api/response"
-	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
+	"errors"
 	"fmt"
-	"github.com/jinzhu/gorm"
+	"github.com/davecgh/go-spew/spew"
+	"gorm.io/gorm"
 	"strings"
 )
 
@@ -116,31 +117,32 @@ func (ps PropService) GetPropByID(propID uint64) (*storage.Prop, error) {
 // GetPropFullByID - получить свойство (полное) относительно его ID
 func (ps PropService) GetPropFullByID(propID uint64, valuesPropService *ValuesPropService) (*response.PropFull, error) {
 	propFull := new(response.PropFull)
+
+	// тут (в SQL) главно не проверить относительно категории
 	query := `
-		SELECT P.*, KP.name AS kind_prop_name 
+		SELECT 	P.*, 
+				KP.name AS kind_prop_name
 			FROM props P
 				LEFT JOIN kind_props KP ON KP.kind_prop_id = P.kind_prop_id
 			WHERE P.prop_id = ?`
-	err := server.Db.Raw(query, propID).Scan(&propFull).Error // проверяется в контроллере
+	err := server.Db.Raw(query, propID).Scan(propFull).Error // проверяется в контроллере.
 
-	// добавим данные если есть куда
-	if !gorm.IsRecordNotFoundError(err) {
-		pValues, err := valuesPropService.GetValuesByPropID(propFull.PropID)
-		if err != nil {
-			return propFull, err
-		}
-
-		propFull.Values = pValues
+	if propFull.Prop == nil {
+		return propFull, gorm.ErrRecordNotFound
 	}
+	spew.Dump(propFull, err, errors.Is(err, gorm.ErrRecordNotFound))
+
+	pValues, err := valuesPropService.GetValuesByPropID(propFull.PropID)
+	if err != nil {
+		return propFull, err
+	}
+	propFull.Values = pValues
 
 	return propFull, err
 }
 
 // Create - создать свойство
 func (ps PropService) Create(prop *storage.Prop, tx *gorm.DB) error {
-	if !server.Db.NewRecord(prop) {
-		return manager.ErrOnNewRecordNew
-	}
 	if tx == nil {
 		tx = server.Db
 	}
@@ -221,18 +223,12 @@ func (ps PropService) ReWriteValuesForProps(propID uint64, tx *gorm.DB, listNew 
 	// обновим/добавим остальные эл-ты
 	for _, v := range listNew {
 		if v.ValueID == 0 {
-			if !server.Db.NewRecord(v) {
-				return listResult, manager.ErrOnNewRecordNew
-			}
-
 			if err := tx.Create(&v).Error; err != nil {
 				return listResult, err
 			}
 
-		} else {
-			if err := tx.Model(&v).Update(v).Error; err != nil {
-				return listResult, err
-			}
+		} else if err := tx.Save(&v).Error; err != nil {
+			return listResult, err
 		}
 
 		listResult = append(listResult, v)

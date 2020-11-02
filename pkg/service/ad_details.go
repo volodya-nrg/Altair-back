@@ -6,7 +6,7 @@ import (
 	"altair/server"
 	"altair/storage"
 	"fmt"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"net/url"
 	"strings"
 )
@@ -58,9 +58,10 @@ func (ads AdDetailService) GetDetailsExtByAdIDs(adIDs []uint64) ([]*response.AdD
 				P.name AS prop_name,
 				(SELECT name FROM kind_props WHERE kind_prop_id = P.kind_prop_id) AS kind_prop_name,
 				(SELECT title FROM value_props 
-					WHERE P.kind_prop_id IN (
-						SELECT kind_prop_id FROM kind_props WHERE name="radio" OR name="select" 
-					) AND value_id = AD.value AND prop_id = AD.prop_id) AS value_name
+					WHERE	value_id = AD.value AND 
+							prop_id = AD.prop_id AND 
+							P.kind_prop_id IN (SELECT kind_prop_id FROM kind_props WHERE name="radio" OR name="select")
+				) AS value_name
 			FROM ad_details AD
 				LEFT JOIN props P ON P.prop_id = AD.prop_id
 			WHERE AD.ad_id`
@@ -86,9 +87,6 @@ func (ads AdDetailService) Create(list []*storage.AdDetail, tx *gorm.DB) error {
 	}
 
 	for _, adDetail := range list {
-		if !tx.NewRecord(adDetail) {
-			return manager.ErrOnNewRecordNew
-		}
 		if err := tx.Create(adDetail).Error; err != nil {
 			return err // manager.ErrNotCreateNewAdDetail
 		}

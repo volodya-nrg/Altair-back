@@ -2,9 +2,9 @@ package request
 
 // PutCat - структура запроса изменение категории
 type PutCat struct {
-	CatID               uint64               `form:"catId" binding:"required"`
+	CatID               uint64               `form:"catID" binding:"required"`
 	Name                string               `form:"name" binding:"required"`
-	ParentID            uint64               `form:"parentId"`
+	ParentID            uint64               `form:"parentID"`
 	Pos                 uint64               `form:"pos"`
 	IsDisabled          bool                 `form:"isDisabled"`
 	PriceAlias          string               `form:"priceAlias"`

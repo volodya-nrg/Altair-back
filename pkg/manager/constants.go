@@ -11,7 +11,7 @@ const (
 	MinLenPassword                                   = 6
 	ImgPathPattern                                   = `^/[0-9a-z]+/[0-9a-z]+\.(jpg|png)$`
 	PhonePattern                                     = `^(7|9)\d{10,11}$`
-	AccessTokenTimeSecond              time.Duration = 60 * 20           // 20 минут
+	AccessTokenTimeSecond              time.Duration = 60 * 10           // 10 минут
 	RefreshTokenTimeSecond             time.Duration = 60 * 60 * 24 * 30 // месяц
 	SessionLimit                                     = 4                 // один прибавляется
 	IsAdmin                                          = "admin"
@@ -25,4 +25,7 @@ const (
 )
 
 // TagKindNumber - теги, в которых значения являются числами
-var TagKindNumber = []string{"select", "radio", "checkbox"}
+var TagKindNumber = []string{"checkbox", "radio", "select", "input_number", "photo"}
+
+// AvailableKindSoc - разрешенные метки для соц. сетей
+var AvailableKindSoc = []string{"vk", "ok", "fb", "ggl"}

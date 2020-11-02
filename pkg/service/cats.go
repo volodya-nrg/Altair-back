@@ -6,7 +6,7 @@ import (
 	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"reflect"
 )
 
@@ -64,6 +64,7 @@ func (cs CatService) GetCatsFullAsTree(catsFull []*response.СatFull) *response.
 // GetCatsAsTree - получить категории в виде дерева
 func (cs CatService) GetCatsAsTree(cats []*storage.Cat) *response.CatTree {
 	tree := new(response.CatTree)
+	tree.Cat = new(storage.Cat) // чтоб присутствовали и др. св-ва, по мимо childes
 
 	for _, cat := range cats {
 		if cat.CatID > 0 {
@@ -128,10 +129,6 @@ func (cs CatService) Create(cat *storage.Cat, tx *gorm.DB) error {
 		tx = server.Db
 	}
 
-	if !server.Db.NewRecord(cat) {
-		return manager.ErrNotCreateNewCat
-	}
-
 	err := tx.Create(cat).Error
 
 	return err
@@ -187,10 +184,6 @@ func (cs CatService) ReWriteCatsProps(catID uint64, tx *gorm.DB, propsAssignedFo
 		catProp.IsRequire = propAssignedForCat.IsRequire
 		catProp.IsCanAsFilter = propAssignedForCat.IsCanAsFilter
 		catProp.Comment = propAssignedForCat.Comment
-
-		if !tbl.NewRecord(catProp) {
-			return list, manager.ErrNotCreateNewCatProp
-		}
 
 		if err := tbl.Create(catProp).Error; err != nil {
 			return list, err
@@ -287,7 +280,7 @@ func (cs CatService) GetIDsFromCatsTree(catsTree *response.CatTree) []uint64 {
 
 // IsLeaf - является ли категория "листом" (конечной)
 func (cs CatService) IsLeaf(catID uint64) (bool, error) {
-	var count uint64
+	var count int64
 	var result bool
 	query := `
 		SELECT COUNT(C.cat_id)
@@ -309,6 +302,7 @@ func (cs CatService) IsLeaf(catID uint64) (bool, error) {
 func (cs CatService) buildTreeWalk(branches *response.CatTree, inputCat response.CatTree) {
 	for _, branch := range branches.Childes {
 		if branch.CatID == inputCat.ParentID {
+			inputCat.Childes = make([]*response.CatTree, 0) // чтоб по умолчанию был []
 			branch.Childes = append(branch.Childes, &inputCat)
 
 		} else if len(branch.Childes) > 0 {
@@ -319,6 +313,7 @@ func (cs CatService) buildTreeWalk(branches *response.CatTree, inputCat response
 func (cs CatService) buildTreeFullWalk(branches *response.CatTreeFull, inputCat response.CatTreeFull) {
 	for _, branch := range branches.Childes {
 		if branch.CatID == inputCat.ParentID {
+			inputCat.Childes = make([]*response.CatTreeFull, 0) // чтоб по умолчанию был []
 			branch.Childes = append(branch.Childes, &inputCat)
 
 		} else if len(branch.Childes) > 0 {

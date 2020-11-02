@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"hash"
 	"strings"
 	"time"
@@ -43,10 +43,6 @@ func (ss SessionService) GetSessionByUserID(userID uint64) ([]*storage.Session, 
 
 // Create - создать сессию
 func (ss SessionService) Create(session *storage.Session, tx *gorm.DB) error {
-	if !server.Db.NewRecord(session) {
-		return manager.ErrNotCreateNewSession
-	}
-
 	if tx == nil {
 		tx = server.Db
 	}
@@ -92,7 +88,7 @@ func (ss SessionService) DeleteAllByUserID(userID uint64, tx *gorm.DB) error {
 }
 
 // GenerateAccessToken - сгенерировать аксес-токен
-func (ss SessionService) GenerateAccessToken(userID uint64, secret string, userRole string) (response.TokenInfo, error) {
+func (ss SessionService) GenerateAccessToken(userID uint64, secret, userRole string) (response.TokenInfo, error) {
 	var h hash.Hash
 	tokenInfo := response.TokenInfo{
 		Domain:   manager.CookieDomain,
@@ -155,7 +151,7 @@ func (ss SessionService) ParseAccessToken(tokenStr string) (response.TokenInfo, 
 }
 
 // ReloadTokens - перевыпустить токены
-func (ss SessionService) ReloadTokens(userID uint64, tokenPassword string, userRole string, c *gin.Context) (response.TokenInfo, *storage.Session, int, error) {
+func (ss SessionService) ReloadTokens(userID uint64, tokenPassword, userRole string, c *gin.Context) (response.TokenInfo, *storage.Session, int, error) {
 	var session = new(storage.Session)
 	var err error
 

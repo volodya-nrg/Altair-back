@@ -10,25 +10,25 @@ type SocialsConfig struct {
 
 // SocVkConfig - структура конфига VK
 type SocVkConfig struct {
-	ClientID     uint64 `json:"clientId"`
+	ClientID     uint64 `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 }
 
 // SocOkConfig - структура конфига OK
 type SocOkConfig struct {
-	ClientID     uint64 `json:"clientId"`
+	ClientID     uint64 `json:"clientID"`
 	ClientPublic string `json:"clientPublic"`
 	ClientSecret string `json:"clientSecret"`
 }
 
 // SocFbConfig - структура конфига FB
 type SocFbConfig struct {
-	ClientID     uint64 `json:"clientId"`
+	ClientID     uint64 `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 }
 
 // SocGglConfig - структура конфига GGL
 type SocGglConfig struct {
-	ClientID     string `json:"clientId"`
+	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 }

@@ -15,22 +15,25 @@ var (
 	Error *log.Logger
 )
 
-// Init - ф-ия уставновки логгера
-func Init(infoHandle io.Writer, warningHandle io.Writer, errorHandle io.Writer) {
-	green := color.New(color.FgGreen).SprintFunc()
-	yellow := color.New(color.FgYellow).SprintFunc()
-	red := color.New(color.FgRed).SprintFunc()
+// Init - ф-ия инициализации логгера
+func Init(infoHandle, warningHandle, errorHandle io.Writer, isDebugMode bool) {
+	prefixInfo, prefixWarning, prefixError := "INFO: ", "WARNING: ", "ERROR: "
+	iInfo := log.LstdFlags | log.Llongfile
+	iWarning := log.LstdFlags | log.Llongfile
+	iError := log.LstdFlags | log.Llongfile
 
-	Info = log.New(infoHandle, green("INFO: "), log.Lshortfile)
-	Warning = log.New(warningHandle, yellow("WARNING: "), log.Lshortfile)
-	Error = log.New(errorHandle, red("ERROR: "), log.Lshortfile)
+	if isDebugMode {
+		green := color.New(color.FgGreen).SprintFunc()
+		yellow := color.New(color.FgYellow).SprintFunc()
+		red := color.New(color.FgRed).SprintFunc()
+
+		prefixInfo = green(prefixInfo)
+		prefixWarning = yellow(prefixWarning)
+		prefixError = red(prefixError)
+		iInfo, iWarning, iError = log.Lshortfile, log.Lshortfile, log.Lshortfile
+	}
+
+	Info = log.New(infoHandle, prefixInfo, iInfo)
+	Warning = log.New(warningHandle, prefixWarning, iWarning)
+	Error = log.New(errorHandle, prefixError, iError)
 }
-
-//f, err := os.OpenFile("./errors.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-//if err != nil {
-//	log.Fatalf("error opening file: %v", err)
-//}
-//defer f.Close()
-//
-//log.SetOutput(f)
-//log.Println("This is a test log entry")

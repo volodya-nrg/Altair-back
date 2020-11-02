@@ -1,0 +1,57 @@
+{
+    "mode": "debug",
+    "tokenPassword": "123",
+    "adminEmail": "volodya-nrg@mail.ru",
+    "domain": "http://localhost:4200",
+    "db": {
+        "host": "remotemysql.com",
+        "port": 3306,
+        "name": "============",
+        "user": "============",
+        "password": "============"
+    },
+    "mediafire": {
+        "appID": "============",
+        "appName": "mp3fordj",
+        "apiKey": "============",
+        "userEmail": "volodya-nrg@mail.ru",
+        "userPassword": "============",
+        "domain": "https://www.mediafire.com",
+        "folderKey": "============"
+    },
+    "email": {
+        "SMTPServer": "smtp.yandex.ru",
+        "port": 465,
+        "login": "support@altair.uz",
+        "password": "============",
+        "from": "support@altair.uz",
+        "fromName": "Admin"
+    },
+    "sms": {
+        "APIKey": "============",
+        "domain": "https://sms.ru"
+    },
+    "soc": {
+        "vk": {
+            "clientID": 7520624,
+            "clientSecret": "============"
+        },
+        "ok": {
+            "clientID": 512000541449,
+            "clientPublic": "============",
+            "clientSecret": "============"
+        },
+        "fb": {
+            "clientID": 2574751919521239,
+            "clientSecret": "============"
+        },
+        "inst": {
+            "clientID": 2863756950419322,
+            "clientSecret": "============"
+        },
+        "ggl": {
+            "clientID": "============",
+            "clientSecret": "============"
+        }
+    }
+}

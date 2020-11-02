@@ -6,8 +6,9 @@ import (
 	"altair/pkg/manager"
 	"altair/pkg/service"
 	"altair/storage"
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"strings"
 )
 
@@ -38,7 +39,7 @@ func GetKindPropsKindPropID(c *gin.Context) {
 	}
 
 	pKindProp, err := serviceKindProps.GetKindPropByID(kindPropID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
@@ -96,7 +97,7 @@ func PutKindPropsKindPropID(c *gin.Context) {
 	}
 
 	pKindProp, err := serviceKindProps.GetKindPropByID(kindPropID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 

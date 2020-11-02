@@ -1,10 +1,9 @@
 package service
 
 import (
-	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // NewImageService - фабрика, создает объект Изображения
@@ -18,7 +17,7 @@ type ImageService struct{}
 // GetImagesByElIDsAndOpt - получить картинки относительно ID элемента и опции
 func (is ImageService) GetImagesByElIDsAndOpt(elIDs []uint64, opt string) ([]*storage.Image, error) {
 	images := make([]*storage.Image, 0)
-	err := server.Db.Where("el_id IN (?) AND opt = ?", elIDs, opt).Find(&images).Error
+	err := server.Db.Where("opt = ? AND el_id IN (?)", opt, elIDs).Find(&images).Error
 
 	return images, err
 }
@@ -35,10 +34,6 @@ func (is ImageService) GetImageByID(imgID uint64) (*storage.Image, error) {
 func (is ImageService) Create(image *storage.Image, tx *gorm.DB) error {
 	if tx == nil {
 		tx = server.Db
-	}
-
-	if !tx.NewRecord(image) {
-		return manager.ErrNotCreateNewImage
 	}
 
 	err := tx.Create(image).Error

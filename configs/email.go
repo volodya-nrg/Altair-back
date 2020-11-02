@@ -7,5 +7,5 @@ type EmailConfig struct {
 	Login      string `json:"login"`
 	Password   string `json:"password"`
 	Port       int    `json:"port"` // именно int
-	SMTPServer string `json:"smtpServer"`
+	SMTPServer string `json:"SMTPServer"`
 }

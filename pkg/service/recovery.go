@@ -1,10 +1,9 @@
 package service
 
 import (
-	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // NewRecoveryService - фабрика, создает объект "восстановление"
@@ -26,10 +25,6 @@ func (rs RecoveryService) GetByHash(hash string) (*storage.Recovery, error) {
 
 // Create - создать запись
 func (rs RecoveryService) Create(recovery *storage.Recovery, tx *gorm.DB) error {
-	if !server.Db.NewRecord(recovery) {
-		return manager.ErrNotCreateNewRecovery
-	}
-
 	if tx == nil {
 		tx = server.Db
 	}

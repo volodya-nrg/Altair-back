@@ -26,19 +26,20 @@ import (
 )
 
 // InArray - находится ли значение в массиве
-func InArray(val interface{}, array interface{}) (bool, int) {
-	switch reflect.TypeOf(array).Kind() {
-	case reflect.Slice:
+func InArray(val, array interface{}) (isFind bool, index int) {
+	if reflect.TypeOf(array).Kind() == reflect.Slice {
 		s := reflect.ValueOf(array)
 
 		for i := 0; i < s.Len(); i++ {
 			if reflect.DeepEqual(val, s.Index(i).Interface()) {
-				return true, i
+				isFind = true
+				index = i
+				return
 			}
 		}
 	}
 
-	return false, -1
+	return
 }
 
 // RandStringRunes - случайная строка
@@ -70,7 +71,7 @@ func HashAndSalt(pwd string) string {
 }
 
 // ComparePasswords - сверка паролей (хеш и строка)
-func ComparePasswords(hashedPwd string, plainPwd string) bool {
+func ComparePasswords(hashedPwd, plainPwd string) bool {
 	if err := bcrypt.CompareHashAndPassword([]byte(hashedPwd), []byte(plainPwd)); err != nil {
 		logger.Warning.Println(err.Error())
 		return false
@@ -233,7 +234,7 @@ func GetYoutubeHash(urlStr string) string {
 	var result string
 
 	if strings.HasPrefix(urlStr, "https://www.youtube.com/embed/") {
-		return strings.Replace(urlStr, "https://www.youtube.com/embed/", "", -1)
+		return strings.ReplaceAll(urlStr, "https://www.youtube.com/embed/", "")
 	}
 
 	u, err := url.Parse(strings.TrimSpace(urlStr))
@@ -267,7 +268,7 @@ func GetYoutubeHash(urlStr string) string {
 }
 
 // RandIntByRange - сеет случайное число, от минимума до максимума
-func RandIntByRange(min int, max int) int {
+func RandIntByRange(min, max int) int {
 	return rand.Intn(max-min) + min
 }
 
@@ -292,7 +293,7 @@ func SToUint64(str string) (uint64, error) {
 }
 
 // MakeRequest - запрос GET, POST на удаленную машину
-func MakeRequest(method string, urlStr string, receiver interface{}, formData map[string]string) error {
+func MakeRequest(method, urlStr string, receiver interface{}, formData map[string]string) error {
 	var err error
 	var resp = new(http.Response)
 	urlData := url.Values{}
@@ -322,8 +323,6 @@ func MakeRequest(method string, urlStr string, receiver interface{}, formData ma
 		if err := json.NewDecoder(resp.Body).Decode(receiver); err != nil {
 			return err
 		}
-
-		PrettyPrint(receiver)
 	}
 
 	return nil
@@ -337,18 +336,22 @@ func PrettyPrint(i interface{}) {
 }
 
 // GetUserIDAndRole - достает данные о текущем пользователе (userID и роль)
-func GetUserIDAndRole(c *gin.Context) (uint64, string, error) {
-	userID, ok := c.MustGet("userID").(uint64)
+func GetUserIDAndRole(c *gin.Context) (userID uint64, userRole string, outError error) {
+	var ok bool
+
+	userID, ok = c.MustGet("userID").(uint64)
 	if !ok {
-		return userID, "", ErrUndefinedUserID
+		outError = ErrUndefinedUserID
+		return
 	}
 
-	userRole, ok := c.MustGet("userRole").(string)
+	userRole, ok = c.MustGet("userRole").(string)
 	if !ok {
-		return userID, "", ErrUndefinedUserRole
+		outError = ErrUndefinedUserRole
+		return
 	}
 
-	return userID, userRole, nil
+	return
 }
 
 // Lorem - сеет случайные слова
@@ -381,8 +384,7 @@ func GetTagsFromStruct(i interface{}, tagName string) []string {
 
 // private -------------------------------------------------------------------------------------------------------------
 func randGenerationString(letterRunes []rune, myLen int) string {
-	rand.Seed(time.Now().UnixNano())
-	// rand.Seed(time.Now().UTC().UnixNano()) // сеет превдослучайное число
+	rand.Seed(time.Now().UnixNano()) // сеет превдослучайное число (rand.Seed(time.Now().UTC().UnixNano()))
 
 	b := make([]rune, myLen)
 	l := len(letterRunes)

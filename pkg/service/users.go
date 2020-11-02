@@ -4,7 +4,7 @@ import (
 	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"unicode/utf8"
 )
 
@@ -46,9 +46,9 @@ func (us UserService) GetUserByHashCheckEmail(hash string) (*storage.User, error
 
 // HasUser - существует ли пользователь, проверка через валидный е-мэйл
 func (us UserService) HasUser(userEmail string) (bool, error) {
-	var count uint64
+	var count int64
 	var result bool
-	query := `SELECT COUNT(user_id) FROM users WHERE email = ? AND is_email_confirmed = 1`
+	query := `SELECT COUNT(user_id) FROM users WHERE is_email_confirmed = 1 AND email = ?`
 
 	if err := server.Db.Raw(query, userEmail).Count(&count).Error; err != nil {
 		return result, err
@@ -64,10 +64,6 @@ func (us UserService) Create(user *storage.User, tx *gorm.DB) error {
 	if err := validate(user); err != nil {
 		return err
 	}
-	if !server.Db.NewRecord(user) {
-		return manager.ErrNotCreateNewUser
-	}
-
 	if tx == nil {
 		tx = server.Db
 	}

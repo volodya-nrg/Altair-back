@@ -13,5 +13,5 @@
  - Цену необходимо сделать адекватной: >= нулю
  - Установка многофункционального линтера - go get github.com/golangci/golangci-lint/cmd/golangci-lint
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0
-
+ - вспомогательная библиотека, разбирает данные - spew.Dump(req)
 */

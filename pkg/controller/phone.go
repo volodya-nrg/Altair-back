@@ -4,8 +4,9 @@ import (
 	"altair/pkg/logger"
 	"altair/pkg/manager"
 	"altair/pkg/service"
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // GetPhonesPhoneID - получение данных об конкретном номере телефона
@@ -21,7 +22,7 @@ func GetPhonesPhoneID(c *gin.Context) {
 	}
 
 	phone, err := servicePhone.GetByID(phoneID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 

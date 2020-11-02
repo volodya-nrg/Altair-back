@@ -119,11 +119,12 @@ func GetResampleWidthHeightPath(c *gin.Context) {
 
 	var m image.Image
 
-	if w > 0 && h < 1 {
+	switch {
+	case w > 0 && h < 1:
 		m = resize.Resize(uint(w), 0, img, resize.Lanczos3)
-	} else if w < 1 && h > 0 {
+	case w < 1 && h > 0:
 		m = resize.Resize(0, uint(h), img, resize.Lanczos3)
-	} else {
+	default:
 		m = resize.Resize(uint(w), uint(h), img, resize.Lanczos3)
 	}
 

@@ -4,8 +4,9 @@ import (
 	"altair/configs"
 	"altair/pkg/manager"
 	"altair/pkg/service"
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"net/http"
 	"regexp"
 	"time"
@@ -14,21 +15,17 @@ import (
 // Auth - посредник, в котором проверяется (не)зарегистрированный пользователь
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		//c.Next()
+		// c.Next()
 		authVal := c.Request.Header.Get("Authorization")
 		bearerPrefix := "Bearer "
 		pattern := `^` + bearerPrefix + `.+$`
 
 		if matched, err := regexp.Match(pattern, []byte(authVal)); err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": err.Error(),
-			}) // 401
+			c.AbortWithStatusJSON(http.StatusUnauthorized, err.Error()) // 401
 			return
 
 		} else if !matched {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": manager.ErrNotMatched.Error(),
-			}) // 401
+			c.AbortWithStatusJSON(http.StatusUnauthorized, manager.ErrNotMatched.Error()) // 401
 			return
 		}
 
@@ -37,16 +34,12 @@ func Auth() gin.HandlerFunc {
 
 		accessTokenInfo, err := serviceSession.ParseAccessToken(tokenSrc)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": err.Error(),
-			}) // 401
+			c.AbortWithStatusJSON(http.StatusUnauthorized, err.Error()) // 401
 			return
 		}
 
 		if !accessTokenInfo.Verify(configs.Cfg.TokenPassword) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": manager.ErrNotVerify.Error(),
-			}) // 401
+			c.AbortWithStatusJSON(http.StatusUnauthorized, manager.ErrNotVerify.Error()) // 401
 			return
 		}
 
@@ -67,7 +60,7 @@ func Auth() gin.HandlerFunc {
 			}
 
 			session, err := serviceSession.GetSessionByRefreshToken(cookieValue)
-			if gorm.IsRecordNotFoundError(err) || err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) || err != nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, err.Error()) // 401
 				return
 			}
@@ -80,9 +73,7 @@ func Auth() gin.HandlerFunc {
 			// если сессия еще действует, то идем далее по коду (чтоб пересоздать ее). Иначе просим авторизоваться.
 			timeDiff := int(time.Until(session.ExpiresIn) / time.Second)
 			if timeDiff < 1 {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"error": manager.ErrSessionIsOver.Error(),
-				}) // 401
+				c.AbortWithStatusJSON(http.StatusUnauthorized, manager.ErrNotVerify.Error()) // 401
 				return
 			}
 		}

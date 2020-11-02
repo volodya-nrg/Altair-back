@@ -1,10 +1,9 @@
 package service
 
 import (
-	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // NewPhoneService - фабрика, создает объект номера телефона
@@ -25,7 +24,7 @@ func (ps PhoneService) GetByID(phoneID uint64) (*storage.Phone, error) {
 // GetPhoneByNumberAndUserID - получить номер телефона относительно его номера и ID пользователя
 func (ps PhoneService) GetPhoneByNumberAndUserID(number string, userID uint64) (*storage.Phone, error) {
 	phone := new(storage.Phone)
-	err := server.Db.Where("number = ? AND user_id = ?", number, userID).First(phone).Error
+	err := server.Db.Order("created_at asc").Where("number = ? AND user_id = ?", number, userID).First(phone).Error
 	return phone, err
 }
 
@@ -38,10 +37,6 @@ func (ps PhoneService) GetPhonesByUserID(userID uint64) ([]*storage.Phone, error
 
 // Create - создать запись
 func (ps PhoneService) Create(phone *storage.Phone, tx *gorm.DB) error {
-	if !server.Db.NewRecord(phone) {
-		return manager.ErrNotCreateNewPhone
-	}
-
 	if tx == nil {
 		tx = server.Db
 	}

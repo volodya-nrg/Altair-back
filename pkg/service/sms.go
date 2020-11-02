@@ -6,7 +6,7 @@ import (
 )
 
 // NewSMSService - фабрика, создает объект СМС
-func NewSMSService(apiKeySrc string, domain string) *SMSService {
+func NewSMSService(apiKeySrc, domain string) *SMSService {
 	sms := &SMSService{
 		apiKey: apiKeySrc,
 		domain: domain,

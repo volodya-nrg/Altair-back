@@ -3,7 +3,7 @@ package request
 // PostCat - структура запроса на добавление категории
 type PostCat struct {
 	Name                string               `form:"name" binding:"required"`
-	ParentID            string               `form:"parentId"`
+	ParentID            string               `form:"parentID"`
 	Pos                 uint64               `form:"pos"`
 	PriceAlias          string               `form:"priceAlias"`
 	PriceSuffix         string               `form:"priceSuffix"`

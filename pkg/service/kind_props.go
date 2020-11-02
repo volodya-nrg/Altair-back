@@ -1,10 +1,9 @@
 package service
 
 import (
-	"altair/pkg/manager"
 	"altair/server"
 	"altair/storage"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // NewKindPropService - фабрика, создает объект вида свойства
@@ -35,9 +34,6 @@ func (ks KindPropService) GetKindPropByID(kindPropID uint64) (*storage.KindProp,
 func (ks KindPropService) Create(prop *storage.KindProp, tx *gorm.DB) error {
 	if tx == nil {
 		tx = server.Db
-	}
-	if !server.Db.NewRecord(prop) {
-		return manager.ErrOnNewRecordNew
 	}
 
 	err := tx.Create(prop).Error

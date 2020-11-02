@@ -31,10 +31,8 @@ func (er *EmailRequest) SendMail() (bool, error) {
 	m := gomail.NewMessage()
 	m.SetHeader("From", configs.Cfg.Email.From)
 	m.SetHeader("To", er.to)
-	// m.SetAddressHeader("Cc", "dan@example.com", "Dan")
 	m.SetHeader("Subject", er.subject)
 	m.SetBody("text/html", er.body)
-	// m.Attach("/home/Alex/lolcat.jpg")
 	d := gomail.NewDialer(
 		configs.Cfg.Email.SMTPServer,
 		configs.Cfg.Email.Port,

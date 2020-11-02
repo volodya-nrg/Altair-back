@@ -757,9 +757,12 @@ func TestGetCatsCatID(t *testing.T) {
 	}
 
 	if len(cats) > 0 {
-		tests = append(tests, My{fmt.Sprint(elID), "", 200})
-		tests = append(tests, My{fmt.Sprint(elID), "withPropsOnlyFiltered=true", 200})
-		tests = append(tests, My{fmt.Sprint(elID), "withPropsOnlyFiltered=1", 200})
+		tests = append(
+			tests,
+			My{fmt.Sprint(elID), "", 200},
+			My{fmt.Sprint(elID), "withPropsOnlyFiltered=true", 200},
+			My{fmt.Sprint(elID), "withPropsOnlyFiltered=1", 200},
+		)
 	}
 
 	for _, tt := range tests {
@@ -1187,25 +1190,26 @@ func TestSearchAds(t *testing.T) {
 		})
 	}
 }
-func TestAllCatsOnWrite(t *testing.T) {
-	//gin.SetMode(gin.TestMode)
-	//a := assert.New(t)
-	//r := setupRouter()
-	//serviceCat := service.NewCatService()
-	//maxUserConnectionsToMySQL := 5
-	//
-	//cats, err := serviceCat.GetCats(0)
-	//if !a.NoError(err) {
-	//	return
-	//}
-	//
-	////testCat(479, t, r)
-	//catTree := serviceCat.GetCatsAsTree(cats)
-	//myCh := make(chan struct{}, maxUserConnectionsToMySQL)
-	//var wg sync.WaitGroup
-	//walkToCatTree(catTree.Childes, t, r, &wg, myCh)
-	//wg.Wait()
-}
+
+/* func TestAllCatsOnWrite(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	a := assert.New(t)
+	r := setupRouter()
+	serviceCat := service.NewCatService()
+	maxUserConnectionsToMySQL := 5
+
+	cats, err := serviceCat.GetCats(0)
+	if !a.NoError(err) {
+		return
+	}
+
+	//testCat(479, t, r)
+	catTree := serviceCat.GetCatsAsTree(cats)
+	myCh := make(chan struct{}, maxUserConnectionsToMySQL)
+	var wg sync.WaitGroup
+	walkToCatTree(catTree.Childes, t, r, &wg, myCh)
+	wg.Wait()
+} */
 
 func walkToCatTree(list []*response.CatTree, t *testing.T, r *gin.Engine, wg *sync.WaitGroup, ch chan struct{}) {
 	for _, leaf := range list {
@@ -1227,9 +1231,6 @@ func walkToCatTree(list []*response.CatTree, t *testing.T, r *gin.Engine, wg *sy
 func testCat(catID uint64, t *testing.T, r *gin.Engine) {
 	a := assert.New(t)
 	serviceCat := service.NewCatService()
-	//serviceAd := service.NewAdService()
-	//serviceAdDetail := service.NewAdDetailService()
-	//serviceImages := service.NewImageService()
 
 	catFull, err := serviceCat.GetCatFullByID(catID, false, 0)
 	if !a.NoError(err) {
@@ -1248,16 +1249,15 @@ func testCat(catID uint64, t *testing.T, r *gin.Engine) {
 	for _, v1 := range catFull.PropsFull {
 		val := manager.RandStringRunes(5)
 
-		if v1.KindPropName == "checkbox" || v1.KindPropName == "radio" || v1.KindPropName == "select" {
+		switch v1.KindPropName {
+		case "checkbox", "radio", "select":
 			for _, v2 := range v1.Values {
 				val = fmt.Sprint(v2.ValueID)
 				break
 			}
-
-		} else if v1.KindPropName == "photo" {
+		case "photo":
 			val = v1.Comment
-
-		} else if v1.KindPropName == "input_number" {
+		case "input_number":
 			val = "0"
 		}
 
@@ -1334,13 +1334,6 @@ func testCat(catID uint64, t *testing.T, r *gin.Engine) {
 			r.ServeHTTP(w, req)
 
 			a.Equal(tt.Want, w.Code, w.Body)
-
-			//if w.Code == 201 {
-			//	ad := new(storage.Ad)
-			//	if a.NoError(json.Unmarshal(w.Body.Bytes(), ad)) {
-			//		a.NoError(serviceAd.Delete(ad.AdID, nil, serviceImages, serviceAdDetail))
-			//	}
-			//}
 		})
 	}
 }

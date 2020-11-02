@@ -1,7 +1,8 @@
 # Mac OS X files
 .DS_Store
 .idea/
-
+web/images/
+web/resample/
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -20,6 +21,3 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
-
-go_build_altair
-go_build_altair_cmd_altair.exe

@@ -4,7 +4,7 @@ import (
 	"altair/api/response"
 	"altair/server"
 	"altair/storage"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // NewValuesPropService - фабрика, создает значения свойства
@@ -34,6 +34,8 @@ func (vs ValuesPropService) PopulateWithValues(listProps []*response.PropFull) e
 	}
 
 	for _, prop := range listProps {
+		prop.Values = make([]*storage.ValueProp, 0) // по умолчанию нужен чтоб был пустой массив, а не nil (из-за фронта)
+
 		for _, value := range values {
 			if prop.PropID == value.PropID {
 				prop.Values = append(prop.Values, value)

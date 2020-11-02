@@ -4,8 +4,9 @@ import (
 	"altair/pkg/logger"
 	"altair/pkg/manager"
 	"altair/pkg/service"
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // GetPagesAdAdID - получение данных для страницы "продукта"
@@ -22,7 +23,7 @@ func GetPagesAdAdID(c *gin.Context) {
 	}
 
 	adFull, err := serviceAds.GetAdFullByID(adID, 0, 1)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		logger.Warning.Println(err.Error())
 		c.JSON(404, err.Error())
 		return
@@ -33,7 +34,7 @@ func GetPagesAdAdID(c *gin.Context) {
 	}
 
 	catFull, err := serviceCats.GetCatFullByID(adFull.CatID, false, 0)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 

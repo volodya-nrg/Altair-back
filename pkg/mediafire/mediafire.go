@@ -161,14 +161,6 @@ func (ms *MFService) UploadSimple(filepath string) (string, error) {
 	}
 	hash := fmt.Sprintf("%x", h.Sum(fileBytes))
 
-	//check, err := ms.UploadCheck(fileInfo.Name(), hash, fileInfo.Size())
-	//if err != nil {
-	//	return err
-	//}
-	//if check.FileExists == "yes" || check.HashExists == "yes" {
-	//	return errors.New("file/hash already exists")
-	//}
-
 	// CREATE FOLDER
 	now := time.Now()
 	day := now.Day()
@@ -218,8 +210,6 @@ func (ms *MFService) UploadSimple(filepath string) (string, error) {
 	req.Header.Set("X-Filesize", fmt.Sprint(fileInfo.Size()))
 	req.Header.Set("X-Filehash", hash)
 
-	// spew.Dump(req)
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return result, err
@@ -241,252 +231,6 @@ func (ms *MFService) UploadSimple(filepath string) (string, error) {
 
 	return result, nil
 }
-
-//func (ms *MediafireService) UserRenewSessionToken() error {
-//	urlPath := "/api/1.5/user/renew_session_token.php"
-//	query := map[string]string{
-//		"session_token":   ms.Data.Response.SessionToken,
-//		"response_format": "json",
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireUserRenewSessionToken
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return err
-//	}
-//
-//	ms.Data.Response.SessionToken = receiver.Response.SessionToken
-//
-//	return nil
-//}
-//func (ms *MediafireService) UserGetActionToken() (string, error) {
-//	var actionToken string
-//	urlPath := "/api/1.5/user/get_action_token.php"
-//	query := map[string]string{
-//		"session_token":   ms.Data.Response.SessionToken,
-//		"type":            "upload",
-//		"response_format": "json",
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return actionToken, err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireUserGetActionToken
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return actionToken, err
-//	}
-//
-//	return receiver.Response.ActionToken, nil
-//}
-//func (ms *MediafireService) UserDestroyActionToken(actionToken string) error {
-//	urlPath := "/api/1.5/user/destroy_action_token.php"
-//	query := map[string]string{
-//		"session_token":   ms.Data.Response.SessionToken,
-//		"action_token":    actionToken,
-//		"response_format": "json",
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireUserDestroyActionToken
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//func (ms *MediafireService) UserGetInfo() error {
-//	urlPath := "/api/1.5/user/get_info.php"
-//	query := map[string]string{
-//		"session_token":   ms.Data.Response.SessionToken,
-//		"response_format": "json",
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireUserGetInfo
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//
-//func (ms *MediafireService) UploadGetOptions() error {
-//	urlPath := "/api/1.5/upload/get_options.php"
-//	query := map[string]string{
-//		"session_token":   ms.Data.Response.SessionToken,
-//		"response_format": "json",
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireUploadGetOptions
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//func (ms *MediafireService) UploadSetOptions() error {
-//	urlPath := "/api/1.5/upload/set_options.php"
-//	query := map[string]string{
-//		"session_token":       ms.Data.Response.SessionToken,
-//		"response_format":     "json",
-//		"action_on_duplicate": "keep",
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireUploadSetOptions
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//func (ms *MediafireService) UploadCheck(filename string, hash string, size int64) (MediafireUploadCheckResponse, error) {
-//	var result MediafireUploadCheckResponse
-//	urlPath := "/api/1.5/upload/check.php"
-//	query := map[string]string{
-//		"filename":        filename,
-//		"hash":            hash,
-//		"size":            fmt.Sprint(size),
-//		"session_token":   ms.Data.Response.SessionToken,
-//		"response_format": "json",
-//		"folder_key":      ms.FolderKey,
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return result, err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireUploadCheck
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return result, err
-//	}
-//
-//	availableSpace, err := manager.SToUint64(receiver.Response.AvailableSpace)
-//	if err != nil {
-//		return receiver.Response, err
-//	}
-//
-//	if availableSpace < size {
-//		return receiver.Response, fmt.Errorf("available space is low (%d)", availableSpace)
-//	}
-//
-//	return receiver.Response, nil
-//}
-//
-//func (ms *MediafireService) FolderConfigureFiledrop() (MediafireFolderConfigureFiledropResponse, error) {
-//	var result MediafireFolderConfigureFiledropResponse
-//	urlPath := "/api/1.5/folder/configure_filedrop.php"
-//	query := map[string]string{
-//		"session_token":   ms.Data.Response.SessionToken,
-//		"response_format": "json",
-//		"action":          "disable",
-//		"folder_key":      ms.FolderKey,
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return result, err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireFolderConfigureFiledrop
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return result, err
-//	}
-//
-//	return receiver.Response, nil
-//}
-//func (ms *MediafireService) FolderGetInfo() error {
-//	urlPath := "/api/1.5/folder/get_info.php"
-//	query := map[string]string{
-//		"response_format": "json",
-//		"folder_key":      ms.FolderKey,
-//		"session_token":   ms.Data.Response.SessionToken,
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireFolderGetInfo
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//func (ms *MediafireService) FolderGetContent() error {
-//	// чет не работает
-//	urlPath := "/api/1.5/folder/get_content.php"
-//	query := map[string]string{
-//		"response_format": "json",
-//		"folder_key":      ms.FolderKey,
-//		//"folder_path": "altair",
-//		"session_token": ms.Data.Response.SessionToken,
-//		// "content_type":    "files",
-//	}
-//	urlData := ms.collectURLData(query, urlPath, true)
-//
-//	resp, err := http.PostForm(ms.Domain+urlPath, urlData)
-//	// resp, err := http.Get(ms.Domain+urlPath + "?" + urlData.Encode())
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//
-//	var receiver MediafireFolderGetInfo
-//	if err := ms.afterResponse(&receiver, resp.Body); err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//func (ms *MediafireService) HasFolder(name string) (bool, error) {
-//	var has bool
-//	return has, nil
-//}
 
 // private -------------------------------------------------------------------------------------------------------------
 func (ms *MFService) collectURLData(query map[string]string, urlPath string, addSignature bool) url.Values {
@@ -519,8 +263,8 @@ func (ms *MFService) generateNewKey() {
 	ms.Data.Response.SecretKeyInt = (ms.Data.Response.SecretKeyInt * 16807) % 2147483647
 	ms.Data.Response.SecretKey = fmt.Sprint(ms.Data.Response.SecretKeyInt)
 }
-func (ms *MFService) createSignature(url string) string {
-	str := fmt.Sprintf("%d%s%s", ms.Data.Response.SecretKeyInt%256, ms.Data.Response.Time, url)
+func (ms *MFService) createSignature(urlSrc string) string {
+	str := fmt.Sprintf("%d%s%s", ms.Data.Response.SecretKeyInt%256, ms.Data.Response.Time, urlSrc)
 	signature := fmt.Sprintf("%x", md5.Sum([]byte(str)))
 	return signature
 }

@@ -7,8 +7,9 @@ import (
 	"altair/pkg/service"
 	"altair/server"
 	"altair/storage"
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"strings"
 )
 
@@ -61,7 +62,7 @@ func GetPropsPropID(c *gin.Context) {
 	}
 
 	propFull, err := serviceProps.GetPropFullByID(propID, serviceValuesProps)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
@@ -77,6 +78,8 @@ func GetPropsPropID(c *gin.Context) {
 // PostProps - добавление свойства
 func PostProps(c *gin.Context) {
 	postRequest := new(request.PostProp)
+
+	//spew.Dump(c.Request.Form.Encode())
 
 	if err := c.ShouldBind(postRequest); err != nil {
 		logger.Warning.Println(err.Error())
@@ -125,8 +128,15 @@ func PostProps(c *gin.Context) {
 
 		// т.к. пришел из вне 0, вставим необходимый id св-ва (к кому он принадлежит)
 		for _, v := range postRequest.Values {
+			tmpValueTitle := strings.TrimSpace(v.Title)
+
+			// с пустым заголовком не пропускаем
+			if tmpValueTitle == "" {
+				continue
+			}
+
 			values = append(values, storage.ValueProp{
-				Title:  v.Title,
+				Title:  tmpValueTitle,
 				Pos:    v.Pos,
 				PropID: prop.PropID,
 			})
@@ -182,7 +192,7 @@ func PutPropsPropID(c *gin.Context) {
 	}
 
 	prop, err := serviceProps.GetPropByID(propID)
-	if gorm.IsRecordNotFoundError(err) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(404, err.Error())
 		return
 
